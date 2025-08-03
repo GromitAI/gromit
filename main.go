@@ -1,10 +1,19 @@
 package main
 
 import (
-	"os"
+	"context"
 	"fmt"
+	"os"
 )
 
 func main() {
-	fmt.Println(os.Args)
+	gromit, err := NewGromit()
+	if err != nil {
+		fmt.Println("Error instantiating Gromit: ", err)
+		os.Exit(1)
+	}
+	if err := gromit.Run(context.Background(), os.Args); err != nil {
+		fmt.Println("Error running Gromit: ", err)
+		os.Exit(1)
+	}
 }
