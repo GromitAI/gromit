@@ -22,9 +22,18 @@ type Gromit struct {
 	*configuration
 }
 
-type configuration struct{}
+type configuration struct{
+	emoji string
+}
 
 type ConfigurationModifier func(*configuration) error
+
+func WithEmoji(emoji string) ConfigurationModifier {
+	return func(c *configuration) error {
+		c.emoji = emoji
+		return nil
+	}
+}
 
 func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	apiKey := g.String("apiKey")
@@ -37,47 +46,55 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	}
 	commandArgs := command.Args().Slice()
 	query := strings.Join(commandArgs, " ")
+	var message string
 	if query == "" {
-		fmt.Println("🤖⚡️ Please specify which linux command you need help with!")
+		message = fmt.Sprintf("%s Please specify which linux command you need help with!\n", g.configuration.emoji)
+		g.Writer.Write([]byte(message))
 		return nil
 	}
 	exeCommand, err := assister.GetTerminalCommand(ctx, query, systemPrompt)
 	if err != nil {
 		return err
 	}
-	fmt.Println("🤖⚡️ In order to do that, you need to run:")
-	fmt.Println(exeCommand)
-	fmt.Println("🤖⚡️ Would you like to run this command?")
+	message = fmt.Sprintf("%s In order to do that, you need to run:\n", g.configuration.emoji)
+	g.Writer.Write([]byte(message))
+	g.Writer.Write([]byte(exeCommand))
+	message = fmt.Sprintf("%s Would you like to run this command?\n", g.configuration.emoji)
+	g.Writer.Write([]byte(message))
 	var userResponse string
 	n, err := fmt.Scanln(&userResponse)
 	userResponse = strings.ToLower(userResponse)
 	switch {
 	case n == 0:
-		fmt.Println("You didn't specify whether you want to run this command!")
+		g.Writer.Write([]byte("You didn't specify whether you want to run this command!\n"))
 		return nil
 	case err != nil:
-		fmt.Println("Error reading your response: ", err)
+		g.Writer.Write([]byte("Error reading your response"))
+		return err
 	case userResponse == "yes" || userResponse == "y":
-		fmt.Println("Running the command:")
-		err := executeCommand(exeCommand)
+		g.Writer.Write([]byte("Running the command:\n"))
+		err := g.executeCommand(exeCommand)
 		if err != nil {
-			fmt.Println("error running the command:", err)
+			g.Writer.Write([]byte("error running the command\n"))
+			return err
 		} else {
-			fmt.Println("🤖⚡️ Done!")
+			message = fmt.Sprintf("%s Done!\n", g.configuration.emoji)
+			g.Writer.Write([]byte(message))
 		}
 	case userResponse == "no" || userResponse == "n":
-		fmt.Println("You chose not to execute this command.")
+		g.Writer.Write([]byte("You chose not to execute this command.\n"))
 	}
 	return nil
 }
 
-func executeCommand(command string) error {
+func (g *Gromit) executeCommand(command string) error {
 	c := exec.Command("sh", "-c", command)
 	output, err := c.CombinedOutput()
 	if err != nil {
 		return err
 	} else {
-		fmt.Println("Command output:", string(output))
+		message := fmt.Sprintf("Command output: %s\n", string(output))
+		g.Writer.Write([]byte(message))
 		return nil
 	}
 }
@@ -122,6 +139,9 @@ func NewGromit(mods ...ConfigurationModifier) (*Gromit, error) {
 			Usage: "A command line helper that uses generative AI to generate commands based on user input.",
 			Name:  "gromit",
 			Flags: flags,
+		},
+		configuration: &configuration{
+			emoji: "🐶",
 		},
 	}
 	gromit.Action = gromit.actionGromit
