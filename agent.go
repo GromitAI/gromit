@@ -2,13 +2,10 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
 )
-
 
 const openAIAgent = "openai"
 
@@ -21,17 +18,11 @@ type Assister interface {
 var _ Assister = (*OpenAIAssister)(nil)
 
 type OpenAIAssister struct {
-	apiKey string
 	model string
 }
 
-
 func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, userMessage string, systemMessage string) (string, error) {
-	var options []option.RequestOption
-	options = append(options, option.WithAPIKey(o.apiKey))
-	client := openai.NewClient(
-		options...
-	)
+	client := openai.NewClient()
 	chatCompletion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(userMessage),
@@ -46,30 +37,18 @@ func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, userMessage str
 }
 
 type AssisterCreator interface {
-	GetAssister(agent string, model string, apiKey string) (Assister, error)
+	GetAssister(agent string, model string) (Assister, error)
 }
 
-var _ AssisterCreator = (*AssisterFactory)(nil)
+var _ AssisterCreator = (*openAIAssisterCreator)(nil)
 
-type AssisterFactory struct {}
+type openAIAssisterCreator struct{}
 
-func (a *AssisterFactory) GetAssister(agent, model, apiKey string) (Assister, error) {
-	if agent == "" {
-		return nil, errors.New("unable to create an ai assister since agent is not specified")
-	}
-	if model == "" {
-		return nil, errors.New("unable to create an ai assister since model is not specified")
-	}
-	if apiKey == "" {
-		return nil, errors.New("unable to create an ai assister since api key is not specified")
-	}
-	switch true {
-	case agent == openAIAgent && model == openAIModelGpt4o:
+func (d *openAIAssisterCreator) GetAssister(agent, model string) (Assister, error) {
+	if (agent == "" && model == "") || (agent == openAIAgent && model == openAIModelGpt4o) {
 		return &OpenAIAssister{
-			apiKey: apiKey,
 			model: model,
 		}, nil
-		default:
-			return nil, fmt.Errorf("cannot create AI agent for %s and model %s", agent, model)
 	}
+	return nil, fmt.Errorf("cannot create AI agent for %s and model %s", agent, model)
 }

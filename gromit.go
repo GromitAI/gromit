@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
+	"io"
 	"os/exec"
 	"strings"
 
@@ -19,70 +19,70 @@ const systemPrompt = `You are a command line helper in a linux environment.
 
 type Gromit struct {
 	cli.Command
-	*configuration
+	messagePrinter
 }
 
-type configuration struct{
-	emoji string
+type messagePrinter struct {
+	config *configuration
+	w      *io.Writer
+}
+
+type configuration struct {
+	promptPrefix string
+}
+
+func (m *messagePrinter) print(s string) {
+	(*m.w).Write([]byte(fmt.Sprintf("%s %s\n", m.config.promptPrefix, s)))
 }
 
 type ConfigurationModifier func(*configuration) error
 
-func WithEmoji(emoji string) ConfigurationModifier {
+func WithPromptPrefix(prefix string) ConfigurationModifier {
 	return func(c *configuration) error {
-		c.emoji = emoji
+		c.promptPrefix = prefix
 		return nil
 	}
 }
 
 func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
-	apiKey := g.String("apiKey")
-	if apiKey == "" && g.String("agent") == openAIAgent {
-		apiKey = os.Getenv("OPENAI_API_KEY")
-	}
-	assister, err := (&AssisterFactory{}).GetAssister(g.String("agent"), g.String("model"), apiKey)
+	assister, err := (&openAIAssisterCreator{}).GetAssister(g.String("agent"), g.String("model"))
 	if err != nil {
 		return err
 	}
 	commandArgs := command.Args().Slice()
 	query := strings.Join(commandArgs, " ")
-	var message string
 	if query == "" {
-		message = fmt.Sprintf("%s Please specify which linux command you need help with!\n", g.configuration.emoji)
-		g.Writer.Write([]byte(message))
+		g.print("Please specify which linux command you need help with!")
 		return nil
 	}
 	exeCommand, err := assister.GetTerminalCommand(ctx, query, systemPrompt)
 	if err != nil {
 		return err
 	}
-	message = fmt.Sprintf("%s In order to do that, you need to run:\n", g.configuration.emoji)
-	g.Writer.Write([]byte(message))
-	g.Writer.Write([]byte(exeCommand))
-	message = fmt.Sprintf("%s Would you like to run this command?\n", g.configuration.emoji)
-	g.Writer.Write([]byte(message))
+	g.print("In order to do that, you need to run:")
+	g.print(exeCommand)
+	g.print("Would you like to run this command?")
 	var userResponse string
 	n, err := fmt.Scanln(&userResponse)
 	userResponse = strings.ToLower(userResponse)
 	switch {
 	case n == 0:
-		g.Writer.Write([]byte("You didn't specify whether you want to run this command!\n"))
+		g.print("You didn't specify whether you want to run this command!")
 		return nil
 	case err != nil:
-		g.Writer.Write([]byte("Error reading your response"))
+		g.print("Error reading your response")
 		return err
 	case userResponse == "yes" || userResponse == "y":
-		g.Writer.Write([]byte("Running the command:\n"))
+		g.print("Running the command...")
 		err := g.executeCommand(exeCommand)
 		if err != nil {
-			g.Writer.Write([]byte("error running the command\n"))
+			g.print("error running the command")
 			return err
 		} else {
-			message = fmt.Sprintf("%s Done!\n", g.configuration.emoji)
-			g.Writer.Write([]byte(message))
+			g.print("Done!")
 		}
 	case userResponse == "no" || userResponse == "n":
-		g.Writer.Write([]byte("You chose not to execute this command.\n"))
+		g.print("You chose not to execute this command.")
 	}
 	return nil
 }
@@ -93,8 +93,8 @@ func (g *Gromit) executeCommand(command string) error {
 	if err != nil {
 		return err
 	} else {
-		message := fmt.Sprintf("Command output: %s\n", string(output))
-		g.Writer.Write([]byte(message))
+		g.print("Command output:")
+		g.print(string(output))
 		return nil
 	}
 }
@@ -126,10 +126,6 @@ func NewGromit(mods ...ConfigurationModifier) (*Gromit, error) {
 			},
 		},
 		&cli.StringFlag{
-			Name:  "apiKey",
-			Usage: "API key for the AI service. Defaults to environment variable <AI provider>_API_KEY, for example OPENAI_API_KEY",
-		},
-		&cli.StringFlag{
 			Name:  "systemPrompt",
 			Usage: "The system prompt for the AI agent. Defaults to command line helper in a linux environment.",
 		},
@@ -140,13 +136,16 @@ func NewGromit(mods ...ConfigurationModifier) (*Gromit, error) {
 			Name:  "gromit",
 			Flags: flags,
 		},
-		configuration: &configuration{
-			emoji: "🐶",
-		},
 	}
 	gromit.Action = gromit.actionGromit
+	gromit.messagePrinter = messagePrinter{
+		w: &gromit.Writer,
+		config: &configuration{
+			promptPrefix: "🐶",
+		},
+	}
 	for _, apply := range mods {
-		if err := apply(gromit.configuration); err != nil {
+		if err := apply(gromit.messagePrinter.config); err != nil {
 			return nil, err
 		}
 	}
