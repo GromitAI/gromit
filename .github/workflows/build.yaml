@@ -1,0 +1,74 @@
+name: Go CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Ensure go.mod and go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod
+          git diff --exit-code go.sum
+      - name: Run Go Vet
+        run: go vet ./...
+      - name: Check code formatting
+        run: |
+          files=$(gofmt -l .)
+          if [ -n "$files" ]; then
+            echo "❌ Code is not formatted in the following files:"
+            echo "$files"
+            echo ""
+            echo "💡 Run 'go fmt ./...' locally to fix formatting."
+            exit 1
+          fi
+      - name: Run Staticcheck
+        # https://github.com/dominikh/go-tools/releases/tag/2025.1.1
+        run: go run honnef.co/go/tools/cmd/staticcheck@b8ec13ce4d00445d75da053c47498e6f9ec5d7d6 ./...
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Run tests
+        run: go test -count=1 ./...
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Build the code
+        run: go build -o gromitai .
+      - name: Run cli with no commands and check the usage output
+        run: |
+          output=$(./gromitai || true)
+          echo "$output"
+          if [[ "$output" != "⚡️🤖 Please specify which linux command you need help with!" ]]; then
+            echo "❌ Usage message does not match the expected value"
+            exit 1
+          fi

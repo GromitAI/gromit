@@ -33,8 +33,8 @@ func TestOpenAIFindingCorrectCommand(t *testing.T) {
 	g.Writer = &buff
 	g.Run(t.Context(), []string{"I", "want", "to", "list", "all", "files", "in", "current", "directory", "including", "hidden", "files"})
 	result := buff.String()
-	require.Contains(t, result, "🐶 In order to do that, you need to run")
-	require.Contains(t, result, "🐶 ls -a")
-	require.Contains(t, result, "🐶 Would you like to run this command?")
-	require.Contains(t, result, "🐶 You didn't specify whether you want to run this command!")
+	require.Contains(t, result, "In order to do that, you need to run")
+	require.Contains(t, result, "ls -a")
+	require.Contains(t, result, "Would you like to run this command?")
+	require.Contains(t, result, "You didn't specify whether you want to run this command!")
 }
