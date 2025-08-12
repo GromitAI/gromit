@@ -19,6 +19,7 @@ const systemPrompt = `You are a command line helper in a linux environment.
 
 type Gromit struct {
 	cli.Command
+	AssisterCreator
 	messagePrinter
 }
 
@@ -32,7 +33,7 @@ type configuration struct {
 }
 
 func (m *messagePrinter) print(s string) {
-	(*m.w).Write([]byte(fmt.Sprintf("%s %s\n", m.config.promptPrefix, s)))
+	fmt.Fprintf(*m.w, "%s %s\n", m.config.promptPrefix, s)
 }
 
 type ConfigurationModifier func(*configuration) error
@@ -45,7 +46,7 @@ func WithPromptPrefix(prefix string) ConfigurationModifier {
 }
 
 func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
-	assister, err := (&openAIAssisterCreator{}).GetAssister(g.String("agent"), g.String("model"))
+	assister, err := g.AssisterCreator.GetAssister(g.String("agent"), g.String("model"))
 	if err != nil {
 		return err
 	}
@@ -99,7 +100,7 @@ func (g *Gromit) executeCommand(command string) error {
 	}
 }
 
-func NewGromit(mods ...ConfigurationModifier) (*Gromit, error) {
+func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error) {
 	flags := []cli.Flag{
 		&cli.StringFlag{
 			Name:  "agent",
@@ -131,6 +132,7 @@ func NewGromit(mods ...ConfigurationModifier) (*Gromit, error) {
 		},
 	}
 	gromit := Gromit{
+		AssisterCreator: a,
 		Command: cli.Command{
 			Usage: "A command line helper that uses generative AI to generate commands based on user input.",
 			Name:  "gromit",
