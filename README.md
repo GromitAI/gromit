@@ -10,6 +10,9 @@ An AI-powered CLI tool that helps you find and execute the right terminal comman
 - 🎯 **Linux Environment Focus**: Optimized for Linux/Unix command line operations
 - 🔧 **Configurable**: Customizable AI models and system prompts (in future)
 
+## Status
+Under active development.
+
 ## Installation
 
 ### Prerequisites
@@ -17,12 +20,17 @@ An AI-powered CLI tool that helps you find and execute the right terminal comman
 - Go 1.24.5 or higher
 - OpenAI API key
 
+### Using go install
+```
+go install github.com/gromitai/gromit
+```
+
 ### Building from Source
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/amirhd23/gromitai.git
-cd gromitai
+git clone https://github.com/gromitai/gromit.git
+cd gromit
 ```
 
 2. Build the project:
