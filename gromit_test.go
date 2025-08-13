@@ -35,7 +35,7 @@ func TestConfigurationPromptPrefix(t *testing.T) {
 	g, err := NewGromit(&mockAIProvider{}, WithPromptPrefix("🏝️"), WithWriter(&buff))
 	require.NoError(t, err)
 	g.Run(t.Context(), []string{})
-	require.Contains(t, buff.String(), "🏝️ Please run ./gromit --help to see usage!")
+	require.Contains(t, buff.String(), "🏝️ Please run ./gromit --help to see usage")
 }
 
 func TestWhenAIProviderFailsToCreateAssister(t *testing.T) {
