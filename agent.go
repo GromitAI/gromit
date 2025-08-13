@@ -45,7 +45,7 @@ var _ AssisterCreator = (*defaultAssisterCreator)(nil)
 type defaultAssisterCreator struct{}
 
 func (d *defaultAssisterCreator) GetAssister(agent, model string) (Assister, error) {
-	if (agent == "" && model == "") || (agent == openAIAgent && model == openAIModelGpt4o) {
+	if agent == "" || agent == openAIAgent {
 		return &OpenAIAssister{
 			model: model,
 		}, nil

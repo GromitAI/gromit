@@ -56,7 +56,11 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		g.print("Please specify which linux command you need help with!")
 		return nil
 	}
-	exeCommand, err := assister.GetTerminalCommand(ctx, query, systemPrompt)
+	prompt := g.String("systemPrompt")
+	if prompt == "" {
+		prompt = systemPrompt
+	}
+	exeCommand, err := assister.GetTerminalCommand(ctx, query, prompt)
 	if err != nil {
 		return err
 	}

@@ -19,7 +19,7 @@ func TestExecuteCommand(t *testing.T) {
 	require.Contains(t, buff.String(), "gromit_test.go")
 }
 
-func TestConfigurationEmoji(t *testing.T) {
+func TestConfigurationPromptPrefix(t *testing.T) {
 	g, err := NewGromit(&mockAIProvider{}, WithPromptPrefix("🏝️"))
 	require.NoError(t, err)
 	var buff bytes.Buffer
