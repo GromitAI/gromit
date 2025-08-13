@@ -36,7 +36,7 @@ func TestGetOpenAIAssister(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			creator := defaultAssisterCreator{}
+			creator := openAIAssisterCreator{}
 			assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
 			if test.err != "" {
 				require.EqualError(t, err, test.err)

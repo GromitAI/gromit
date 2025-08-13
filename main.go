@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	gromit, err := NewGromit(&defaultAssisterCreator{}, WithPromptPrefix("⚡️🤖"))
+	gromit, err := NewGromit(&openAIAssisterCreator{}, WithPromptPrefix("⚡️🤖"))
 	if err != nil {
 		fmt.Println("Error instantiating Gromit: ", err)
 		os.Exit(1)

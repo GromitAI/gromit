@@ -40,11 +40,11 @@ type AssisterCreator interface {
 	GetAssister(agent string, model string) (Assister, error)
 }
 
-var _ AssisterCreator = (*defaultAssisterCreator)(nil)
+var _ AssisterCreator = (*openAIAssisterCreator)(nil)
 
-type defaultAssisterCreator struct{}
+type openAIAssisterCreator struct{}
 
-func (d *defaultAssisterCreator) GetAssister(agent, model string) (Assister, error) {
+func (d *openAIAssisterCreator) GetAssister(agent, model string) (Assister, error) {
 	if agent == "" || agent == openAIAgent {
 		return &OpenAIAssister{
 			model: model,
