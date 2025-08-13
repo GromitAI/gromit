@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,4 +51,16 @@ func TestGetOpenAIAssister(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetTerminalCommand(t *testing.T) {
+	if _, isset := os.LookupEnv("CI"); isset { //skip this test in GitHub CI
+		t.Skip("Skipping external AI API calls in CI")
+	}
+	assister := OpenAIAssister{
+		model: openAIModelGpt4o,
+	}
+	command, err := assister.GetTerminalCommand(t.Context(), "I want to list all files in current directory", systemPrompt)
+	require.NoError(t, err)
+	require.Contains(t, command, "ls")
 }
