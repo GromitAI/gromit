@@ -1,4 +1,4 @@
-module github.com/amirhd23/gromitai
+module github.com/gromitai/gromit
 
 go 1.24.5
 
