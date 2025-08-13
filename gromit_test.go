@@ -10,20 +10,18 @@ import (
 )
 
 func TestExecuteCommand(t *testing.T) {
-	g, err := NewGromit(&mockAIProvider{})
-	require.NoError(t, err)
 	var buff bytes.Buffer
-	g.Writer = &buff
+	g, err := NewGromit(&mockAIProvider{}, WithWriter(&buff))
+	require.NoError(t, err)
 	err = g.executeCommand("ls")
 	require.NoError(t, err)
 	require.Contains(t, buff.String(), "gromit_test.go")
 }
 
 func TestConfigurationPromptPrefix(t *testing.T) {
-	g, err := NewGromit(&mockAIProvider{}, WithPromptPrefix("🏝️"))
-	require.NoError(t, err)
 	var buff bytes.Buffer
-	g.Writer = &buff
+	g, err := NewGromit(&mockAIProvider{}, WithPromptPrefix("🏝️"), WithWriter(&buff))
+	require.NoError(t, err)
 	g.Run(t.Context(), []string{})
 	require.Equal(t, "🏝️ Please specify which linux command you need help with!\n", buff.String())
 }
@@ -49,13 +47,13 @@ func TestWhenAIProviderFailsToFindTheCommand(t *testing.T) {
 }
 
 func TestOpenAIFindingCorrectCommand(t *testing.T) {
+	var buff bytes.Buffer
 	m := &mockAIProvider{
 		commandResult: "ls -la",
 	}
-	g, err := NewGromit(m)
+	g, err := NewGromit(m, WithWriter(&buff))
 	require.NoError(t, err)
-	var buff bytes.Buffer
-	g.Writer = &buff
+
 	g.Run(t.Context(), []string{"I", "want", "to", "list", "all", "files", "in", "current", "directory"})
 	result := buff.String()
 	require.Contains(t, result, "🐶 In order to do that, you need to run")

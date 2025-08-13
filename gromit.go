@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -25,15 +26,15 @@ type Gromit struct {
 
 type messagePrinter struct {
 	config *configuration
-	w      *io.Writer
 }
 
 type configuration struct {
 	promptPrefix string
+	w            io.Writer
 }
 
 func (m *messagePrinter) print(s string) {
-	fmt.Fprintf(*m.w, "%s %s\n", m.config.promptPrefix, s)
+	fmt.Fprintf(m.config.w, "%s %s\n", m.config.promptPrefix, s)
 }
 
 type ConfigurationModifier func(*configuration) error
@@ -41,6 +42,13 @@ type ConfigurationModifier func(*configuration) error
 func WithPromptPrefix(prefix string) ConfigurationModifier {
 	return func(c *configuration) error {
 		c.promptPrefix = prefix
+		return nil
+	}
+}
+
+func WithWriter(writer io.Writer) ConfigurationModifier {
+	return func(c *configuration) error {
+		c.w = writer
 		return nil
 	}
 }
@@ -145,9 +153,9 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 	}
 	gromit.Action = gromit.actionGromit
 	gromit.messagePrinter = messagePrinter{
-		w: &gromit.Writer,
 		config: &configuration{
 			promptPrefix: "🐶",
+			w:            os.Stdout,
 		},
 	}
 	for _, apply := range mods {
