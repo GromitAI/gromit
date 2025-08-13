@@ -18,12 +18,24 @@ func TestExecuteCommand(t *testing.T) {
 	require.Contains(t, buff.String(), "gromit_test.go")
 }
 
+func TestMessagePrinter(t *testing.T) {
+	var buff bytes.Buffer
+	p := messagePrinter{
+		config: &configuration{
+			promptPrefix: "✌️",
+			w:            &buff,
+		},
+	}
+	p.print("hello")
+	require.Equal(t, "✌️ hello\n", buff.String())
+}
+
 func TestConfigurationPromptPrefix(t *testing.T) {
 	var buff bytes.Buffer
 	g, err := NewGromit(&mockAIProvider{}, WithPromptPrefix("🏝️"), WithWriter(&buff))
 	require.NoError(t, err)
 	g.Run(t.Context(), []string{})
-	require.Equal(t, "🏝️ Please specify which linux command you need help with!\n", buff.String())
+	require.Contains(t, buff.String(), "🏝️ Please run ./gromit --help to see usage!")
 }
 
 func TestWhenAIProviderFailsToCreateAssister(t *testing.T) {
@@ -54,21 +66,33 @@ func TestOpenAIFindingCorrectCommand(t *testing.T) {
 	g, err := NewGromit(m, WithWriter(&buff))
 	require.NoError(t, err)
 
-	g.Run(t.Context(), []string{"I", "want", "to", "list", "all", "files", "in", "current", "directory"})
+	g.Run(t.Context(), []string{"gromit", "--model", "myModel", "--agent", "myAgent", "--systemPrompt", "myPrompt", "I", "want", "to", "list", "all", "files", "in", "current", "directory"})
 	result := buff.String()
 	require.Contains(t, result, "🐶 In order to do that, you need to run")
 	require.Contains(t, result, "🐶 ls -la")
 	require.Contains(t, result, "🐶 Would you like to run this command?")
 	require.Contains(t, result, "🐶 You didn't specify whether you want to run this command!")
+
+	require.Equal(t, "myAgent", m.actualAgent)
+	require.Equal(t, "myModel", m.actualModel)
+	require.Equal(t, "myPrompt", m.actualSystemMessage)
+	require.Equal(t, "I want to list all files in current directory", m.actualUserMessage)
 }
 
 type mockAIProvider struct {
 	assisterError error
 	commandError  error
 	commandResult string
+
+	actualAgent         string
+	actualModel         string
+	actualSystemMessage string
+	actualUserMessage   string
 }
 
 func (m *mockAIProvider) GetAssister(agent string, model string) (Assister, error) {
+	m.actualAgent = agent
+	m.actualModel = model
 	if m.assisterError != nil {
 		return nil, m.assisterError
 	}
@@ -76,6 +100,8 @@ func (m *mockAIProvider) GetAssister(agent string, model string) (Assister, erro
 }
 
 func (m *mockAIProvider) GetTerminalCommand(ctx context.Context, userMessage string, systemMessage string) (string, error) {
+	m.actualSystemMessage = systemMessage
+	m.actualUserMessage = userMessage
 	if m.commandError != nil {
 		return "", m.commandError
 	}

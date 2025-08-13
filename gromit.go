@@ -61,7 +61,7 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	commandArgs := command.Args().Slice()
 	query := strings.Join(commandArgs, " ")
 	if query == "" {
-		g.print("Please specify which linux command you need help with!")
+		g.print("Please run ./gromit --help to see usage")
 		return nil
 	}
 	prompt := g.String("systemPrompt")
@@ -119,12 +119,10 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 			Usage: "The AI agent to use for processing requests. Defaults to 'OpenAI'. Currently supported agents: OpenAI.",
 			Value: openAIAgent,
 			Action: func(ctx context.Context, command *cli.Command, s string) error {
-				switch strings.ToLower(s) {
-				case openAIAgent:
-					return nil
-				default:
-					return fmt.Errorf("unsupported AI agent %s", s)
+				if s == "" {
+					return errors.New("agent cannot be empty")
 				}
+				return nil
 			},
 		},
 		&cli.StringFlag{
