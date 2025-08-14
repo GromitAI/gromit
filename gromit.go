@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -19,20 +20,21 @@ const systemPrompt = `You are a command line helper in a linux environment.
 
 type Gromit struct {
 	cli.Command
+	AssisterCreator
 	messagePrinter
 }
 
 type messagePrinter struct {
 	config *configuration
-	w      *io.Writer
 }
 
 type configuration struct {
 	promptPrefix string
+	w            io.Writer
 }
 
 func (m *messagePrinter) print(s string) {
-	(*m.w).Write([]byte(fmt.Sprintf("%s %s\n", m.config.promptPrefix, s)))
+	fmt.Fprintf(m.config.w, "%s %s\n", m.config.promptPrefix, s)
 }
 
 type ConfigurationModifier func(*configuration) error
@@ -44,18 +46,29 @@ func WithPromptPrefix(prefix string) ConfigurationModifier {
 	}
 }
 
+func WithWriter(writer io.Writer) ConfigurationModifier {
+	return func(c *configuration) error {
+		c.w = writer
+		return nil
+	}
+}
+
 func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
-	assister, err := (&openAIAssisterCreator{}).GetAssister(g.String("agent"), g.String("model"))
+	assister, err := g.AssisterCreator.GetAssister(g.String("agent"), g.String("model"))
 	if err != nil {
 		return err
 	}
 	commandArgs := command.Args().Slice()
 	query := strings.Join(commandArgs, " ")
 	if query == "" {
-		g.print("Please specify which linux command you need help with!")
+		g.print("Please run ./gromit --help to see usage")
 		return nil
 	}
-	exeCommand, err := assister.GetTerminalCommand(ctx, query, systemPrompt)
+	prompt := g.String("systemPrompt")
+	if prompt == "" {
+		prompt = systemPrompt
+	}
+	exeCommand, err := assister.GetTerminalCommand(ctx, query, prompt)
 	if err != nil {
 		return err
 	}
@@ -99,19 +112,17 @@ func (g *Gromit) executeCommand(command string) error {
 	}
 }
 
-func NewGromit(mods ...ConfigurationModifier) (*Gromit, error) {
+func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error) {
 	flags := []cli.Flag{
 		&cli.StringFlag{
 			Name:  "agent",
 			Usage: "The AI agent to use for processing requests. Defaults to 'OpenAI'. Currently supported agents: OpenAI.",
 			Value: openAIAgent,
 			Action: func(ctx context.Context, command *cli.Command, s string) error {
-				switch strings.ToLower(s) {
-				case openAIAgent:
-					return nil
-				default:
-					return fmt.Errorf("unsupported AI agent %s", s)
+				if s == "" {
+					return errors.New("agent cannot be empty")
 				}
+				return nil
 			},
 		},
 		&cli.StringFlag{
@@ -131,6 +142,7 @@ func NewGromit(mods ...ConfigurationModifier) (*Gromit, error) {
 		},
 	}
 	gromit := Gromit{
+		AssisterCreator: a,
 		Command: cli.Command{
 			Usage: "A command line helper that uses generative AI to generate commands based on user input.",
 			Name:  "gromit",
@@ -139,9 +151,9 @@ func NewGromit(mods ...ConfigurationModifier) (*Gromit, error) {
 	}
 	gromit.Action = gromit.actionGromit
 	gromit.messagePrinter = messagePrinter{
-		w: &gromit.Writer,
 		config: &configuration{
 			promptPrefix: "🐶",
+			w:            os.Stdout,
 		},
 	}
 	for _, apply := range mods {

@@ -41,8 +41,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -68,7 +66,7 @@ jobs:
         run: |
           output=$(./gromitai || true)
           echo "$output"
-          if [[ "$output" != "⚡️🤖 Please specify which linux command you need help with!" ]]; then
+          if [[ "$output" != "⚡️🤖 Please run ./gromit --help to see usage" ]]; then
             echo "❌ Usage message does not match the expected value"
             exit 1
           fi
