@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/openai/openai-go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +19,7 @@ func TestGetOpenAIAssister(t *testing.T) {
 			name:          "no agent and model should default to openAI assister",
 			inputAgent:    "",
 			inputModel:    "",
-			expectedModel: "",
+			expectedModel: openai.ChatModelGPT4o,
 			err:           "",
 		},
 		{
@@ -58,7 +59,7 @@ func TestGetTerminalCommand(t *testing.T) {
 		t.Skip("Skipping external AI API calls in CI")
 	}
 	assister := OpenAIAssister{
-		model: openAIModelGpt4o,
+		model: openai.ChatModelGPT4o,
 	}
 	command, err := assister.GetTerminalCommand(t.Context(), "I want to list all files in current directory", systemPrompt)
 	require.NoError(t, err)
