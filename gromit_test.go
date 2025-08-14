@@ -58,10 +58,10 @@ func TestWhenAIProviderFailsToFindTheCommand(t *testing.T) {
 	require.EqualError(t, err, "Unable to find the correct command")
 }
 
-func TestOpenAIFindingCorrectCommand(t *testing.T) {
+func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	var buff bytes.Buffer
 	m := &mockAIProvider{
-		commandResult: "ls -la",
+		commandResult: "ls",
 	}
 	g, err := NewGromit(m, WithWriter(&buff))
 	require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestOpenAIFindingCorrectCommand(t *testing.T) {
 	g.Run(t.Context(), []string{"gromit", "--model", "myModel", "--agent", "myAgent", "--systemPrompt", "myPrompt", "I", "want", "to", "list", "all", "files", "in", "current", "directory"})
 	result := buff.String()
 	require.Contains(t, result, "🐶 In order to do that, you need to run")
-	require.Contains(t, result, "🐶 ls -la")
+	require.Contains(t, result, "🐶 ls")
 	require.Contains(t, result, "🐶 Would you like to run this command?")
 	require.Contains(t, result, "🐶 You didn't specify whether you want to run this command!")
 

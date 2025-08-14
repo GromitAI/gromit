@@ -89,7 +89,7 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		g.print("Running the command...")
 		err := g.executeCommand(exeCommand)
 		if err != nil {
-			g.print("error running the command")
+			g.print(fmt.Sprintf("error running the command: %s", err.Error()))
 			return err
 		} else {
 			g.print("Done!")
@@ -117,7 +117,6 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 		&cli.StringFlag{
 			Name:  "agent",
 			Usage: "The AI agent to use for processing requests. Defaults to 'OpenAI'. Currently supported agents: OpenAI.",
-			Value: openAIAgent,
 			Action: func(ctx context.Context, command *cli.Command, s string) error {
 				if s == "" {
 					return errors.New("agent cannot be empty")
@@ -128,7 +127,6 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 		&cli.StringFlag{
 			Name:  "model",
 			Usage: "The model to use for AI agent; for example, gpt-4o",
-			Value: openAIModelGpt4o,
 			Action: func(ctx context.Context, command *cli.Command, s string) error {
 				if s == "" {
 					return errors.New("model cannot be empty")
