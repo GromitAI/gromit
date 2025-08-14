@@ -72,11 +72,11 @@ type AssisterCreator interface {
 	GetAssister(agent string, model string) (Assister, error)
 }
 
-var _ AssisterCreator = (*openAIAssisterCreator)(nil)
+var _ AssisterCreator = (*defaultAIAssisterCreator)(nil)
 
-type openAIAssisterCreator struct{}
+type defaultAIAssisterCreator struct{}
 
-func (d *openAIAssisterCreator) GetAssister(agent, model string) (Assister, error) {
+func (d *defaultAIAssisterCreator) GetAssister(agent, model string) (Assister, error) {
 	if agent == "" || agent == openAIAgent {
 		if model == "" {
 			model = openai.ChatModelGPT4o
