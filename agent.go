@@ -13,10 +13,14 @@ import (
 const (
 	openAIAgent      = "openai"
 	anthropicAIAgent = "anthropic"
-	geminiAIAgent = "gemini"
+	geminiAIAgent    = "gemini"
 )
 
-const gemini2_5_flash_lite = "gemini-2.5-flash-lite"
+// Gemini models
+const (
+	geminiFlashLite = "gemini-2.5-flash-lite"
+	geminiFlash     = "gemini-2.5-flash"
+)
 
 type Assister interface {
 	GetTerminalCommand(ctx context.Context, userMessage string, systemMessage string) (string, error)
@@ -83,7 +87,7 @@ func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage s
 	if err != nil {
 		return "", err
 	}
-	config := &genai.GenerateContentConfig {
+	config := &genai.GenerateContentConfig{
 		SystemInstruction: &genai.Content{
 			Parts: []*genai.Part{
 				{Text: systemMessage},
@@ -125,7 +129,7 @@ func (d *defaultAIAssisterCreator) GetAssister(agent, model string) (Assister, e
 	}
 	if agent == geminiAIAgent {
 		if model == "" {
-			model = gemini2_5_flash_lite
+			model = geminiFlashLite
 		}
 		return &GeminiAIAssister{
 			model,
