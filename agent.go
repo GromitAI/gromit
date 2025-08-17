@@ -61,7 +61,6 @@ func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessag
 		switch block := content.AsAny().(type) {
 		case anthropic.TextBlock:
 			response = block.Text
-			break
 		}
 	}
 	return response, nil
