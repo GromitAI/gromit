@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/openai/openai-go"
 )
@@ -58,14 +56,15 @@ func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessag
 	if err != nil {
 		return "", err
 	}
-	var response []string
+	var response string
 	for _, content := range message.Content {
 		switch block := content.AsAny().(type) {
 		case anthropic.TextBlock:
-			response = append(response, block.Text)
+			response = block.Text
+			break
 		}
 	}
-	return strings.Join(response, "\n"), nil
+	return response, nil
 }
 
 type AssisterCreator interface {
@@ -77,21 +76,23 @@ var _ AssisterCreator = (*defaultAIAssisterCreator)(nil)
 type defaultAIAssisterCreator struct{}
 
 func (d *defaultAIAssisterCreator) GetAssister(agent, model string) (Assister, error) {
-	if agent == "" || agent == openAIAgent {
+	switch {
+	case agent == "" || agent == openAIAgent:
 		if model == "" {
 			model = openai.ChatModelGPT4o
 		}
 		return &OpenAIAssister{
 			model: model,
 		}, nil
-	}
-	if agent == anthropicAIAgent {
+
+	case agent == anthropicAIAgent:
 		if model == "" {
 			model = string(anthropic.ModelClaude3_5HaikuLatest)
 		}
 		return &AnthropicAIAssister{
 			model: model,
 		}, nil
+	default:
+		return nil, fmt.Errorf("cannot create AI agent for %s and model %s", agent, model)
 	}
-	return nil, fmt.Errorf("cannot create AI agent for %s and model %s", agent, model)
 }
