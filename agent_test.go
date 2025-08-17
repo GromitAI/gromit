@@ -90,34 +90,29 @@ func TestGetGeminiAssister(t *testing.T) {
 		{
 			name:          "Gemini agent with no model should default to gemini-2.5-flash-lite",
 			inputAgent:    geminiAIAgent,
-			inputModel:    "",
 			expectedModel: geminiFlashLite,
-			err:           "",
 		},
 		{
 			name:          "Gemini agent with given model should create correct assister",
 			inputAgent:    geminiAIAgent,
 			inputModel:    "gemini-2.5-flash-preview-tts",
 			expectedModel: "gemini-2.5-flash-preview-tts",
-			err:           "",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Run(test.name, func(t *testing.T) {
-				creator := defaultAIAssisterCreator{}
-				assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
-				if test.err != "" {
-					require.EqualError(t, err, test.err)
+			creator := defaultAIAssisterCreator{}
+			assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
+			if test.err != "" {
+				require.EqualError(t, err, test.err)
+			} else {
+				require.NoError(t, err)
+				if geminiAssister, ok := assister.(*GeminiAIAssister); ok {
+					require.Equal(t, test.expectedModel, geminiAssister.model)
 				} else {
-					require.NoError(t, err)
-					if geminiAssister, ok := assister.(*GeminiAIAssister); ok {
-						require.Equal(t, test.expectedModel, geminiAssister.model)
-					} else {
-						require.Fail(t, "Expected Gemini AI assister")
-					}
+					require.Fail(t, "Expected Gemini AI assister")
 				}
-			})
+			}
 		})
 	}
 }
