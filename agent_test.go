@@ -37,7 +37,7 @@ func TestGetOpenAIAssister(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			creator := defaultAIAssisterCreator{}
+			var creator defaultAIAssisterCreator
 			assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
@@ -69,7 +69,7 @@ func TestGetAnthropicAssister(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			creator := defaultAIAssisterCreator{}
+			var creator defaultAIAssisterCreator
 			assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
@@ -79,6 +79,38 @@ func TestGetAnthropicAssister(t *testing.T) {
 					require.Equal(t, test.expectedModel, anthropicAssister.model)
 				} else {
 					require.Fail(t, "Expected Anthropic AI assister")
+				}
+			}
+		})
+	}
+}
+
+func TestGetGeminiAssister(t *testing.T) {
+	tests := []assisterTestCase{
+		{
+			name:          "Gemini agent with no model should default to gemini-2.5-flash-lite",
+			inputAgent:    geminiAIAgent,
+			expectedModel: geminiFlashLite,
+		},
+		{
+			name:          "Gemini agent with given model should create correct assister",
+			inputAgent:    geminiAIAgent,
+			inputModel:    "gemini-2.5-flash-preview-tts",
+			expectedModel: "gemini-2.5-flash-preview-tts",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var creator defaultAIAssisterCreator
+			assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
+			if test.err != "" {
+				require.EqualError(t, err, test.err)
+			} else {
+				require.NoError(t, err)
+				if geminiAssister, ok := assister.(*GeminiAIAssister); ok {
+					require.Equal(t, test.expectedModel, geminiAssister.model)
+				} else {
+					require.Fail(t, "Expected Gemini AI assister")
 				}
 			}
 		})
@@ -98,6 +130,10 @@ func TestGetTerminalCommand(t *testing.T) {
 			name:  "Should create correct command when calling Anthropic llm",
 			agent: anthropicAIAgent,
 		},
+		{
+			name:  "Should create correct command when calling Gemini llm",
+			agent: geminiAIAgent,
+		},
 	}
 	if _, isset := os.LookupEnv("CI"); isset { //skip this test in GitHub CI
 		t.Skip("Skipping external AI API calls in CI")
@@ -114,6 +150,10 @@ func TestGetTerminalCommand(t *testing.T) {
 			case anthropicAIAgent:
 				assister = &AnthropicAIAssister{
 					model: string(anthropic.ModelClaude3_5HaikuLatest),
+				}
+			case geminiAIAgent:
+				assister = &GeminiAIAssister{
+					model: geminiFlash,
 				}
 			}
 			command, err := assister.GetTerminalCommand(t.Context(), "I want to list all files in current directory", systemPrompt)

@@ -5,11 +5,19 @@ import (
 	"fmt"
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/openai/openai-go"
+	"google.golang.org/genai"
 )
 
 const (
 	openAIAgent      = "openai"
 	anthropicAIAgent = "anthropic"
+	geminiAIAgent    = "gemini"
+)
+
+// Gemini models
+const (
+	geminiFlashLite = "gemini-2.5-flash-lite"
+	geminiFlash     = "gemini-2.5-flash"
 )
 
 type Assister interface {
@@ -17,6 +25,8 @@ type Assister interface {
 }
 
 var _ Assister = (*OpenAIAssister)(nil)
+var _ Assister = (*AnthropicAIAssister)(nil)
+var _ Assister = (*GeminiAIAssister)(nil)
 
 type OpenAIAssister struct {
 	model string
@@ -66,6 +76,35 @@ func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessag
 	return response, nil
 }
 
+type GeminiAIAssister struct {
+	model string
+}
+
+func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage string, systemMessage string) (string, error) {
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		Backend: genai.BackendGeminiAPI,
+	})
+	if err != nil {
+		return "", err
+	}
+	config := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{
+				{Text: systemMessage},
+			},
+		},
+	}
+	chat, err := client.Chats.Create(ctx, g.model, config, nil)
+	if err != nil {
+		return "", err
+	}
+	result, err := chat.SendMessage(ctx, genai.Part{Text: userMessage})
+	if err != nil {
+		return "", err
+	}
+	return result.Candidates[0].Content.Parts[0].Text, nil
+}
+
 type AssisterCreator interface {
 	GetAssister(agent string, model string) (Assister, error)
 }
@@ -90,6 +129,13 @@ func (d *defaultAIAssisterCreator) GetAssister(agent, model string) (Assister, e
 		}
 		return &AnthropicAIAssister{
 			model: model,
+		}, nil
+	case agent == geminiAIAgent:
+		if model == "" {
+			model = geminiFlashLite
+		}
+		return &GeminiAIAssister{
+			model,
 		}, nil
 	default:
 		return nil, fmt.Errorf("cannot create AI agent for %s and model %s", agent, model)
