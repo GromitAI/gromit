@@ -25,6 +25,8 @@ type Assister interface {
 }
 
 var _ Assister = (*OpenAIAssister)(nil)
+var _ Assister = (*AnthropicAIAssister)(nil)
+var _ Assister = (*GeminiAIAssister)(nil)
 
 type OpenAIAssister struct {
 	model string
@@ -92,7 +94,10 @@ func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage s
 			},
 		},
 	}
-	chat, _ := client.Chats.Create(ctx, g.model, config, nil)
+	chat, err := client.Chats.Create(ctx, g.model, config, nil)
+	if err != nil {
+		return "", err
+	}
 	result, err := chat.SendMessage(ctx, genai.Part{Text: userMessage})
 	if err != nil {
 		return "", err

@@ -37,7 +37,7 @@ func TestGetOpenAIAssister(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			creator := defaultAIAssisterCreator{}
+			var creator defaultAIAssisterCreator
 			assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
@@ -69,7 +69,7 @@ func TestGetAnthropicAssister(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			creator := defaultAIAssisterCreator{}
+			var creator defaultAIAssisterCreator
 			assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
@@ -101,7 +101,7 @@ func TestGetGeminiAssister(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			creator := defaultAIAssisterCreator{}
+			var creator defaultAIAssisterCreator
 			assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
