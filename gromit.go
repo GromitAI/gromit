@@ -75,17 +75,13 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	g.print("In order to do that, you need to run:")
 	g.print(exeCommand)
 	g.print("Would you like to run this command?")
-	var userResponse string
-	n, err := fmt.Scanln(&userResponse)
-	userResponse = strings.ToLower(userResponse)
-	switch {
-	case n == 0:
-		g.print("You didn't specify whether you want to run this command!")
-		return nil
-	case err != nil:
+
+	confirmation, err := g.askConfirmation()
+	if err != nil {
 		g.print("Error reading your response")
 		return err
-	case userResponse == "yes" || userResponse == "y":
+	}
+	if confirmation.confirm {
 		g.print("Running the command...")
 		err := g.executeCommand(exeCommand)
 		if err != nil {
@@ -94,10 +90,34 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		} else {
 			g.print("Done!")
 		}
-	case userResponse == "no" || userResponse == "n":
+	} else {
 		g.print("You chose not to execute this command.")
 	}
 	return nil
+}
+
+type userConfirmation struct {
+	confirm bool
+}
+
+func (g *Gromit) askConfirmation() (userConfirmation, error) {
+	var userConfirmation userConfirmation
+	var userResponse string
+	n, err := fmt.Scanln(&userResponse)
+	userResponse = strings.ToLower(userResponse)
+	switch {
+	case n == 0:
+		g.print("You didn't confirm your choice! Please reply with yes(y) or no(n).")
+		return g.askConfirmation()
+	case err != nil:
+		g.print("Error reading your response")
+		return userConfirmation, err
+	case userResponse == "yes" || userResponse == "y":
+		userConfirmation.confirm = true
+	case userResponse == "no" || userResponse == "n":
+		userConfirmation.confirm = false
+	}
+	return userConfirmation, nil
 }
 
 func (g *Gromit) executeCommand(command string) error {
