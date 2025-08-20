@@ -23,19 +23,22 @@ type Gromit struct {
 	cli.Command
 	AssisterCreator
 	messagePrinter
+	*configuration
 }
 
 type messagePrinter struct {
-	config *configuration
+	w            io.Writer
+	promptPrefix string
 }
 
 type configuration struct {
-	promptPrefix string
-	w            io.Writer
+	promptPrefix       string
+	w                  io.Writer
+	askForConfirmation bool
 }
 
 func (m *messagePrinter) print(s string) {
-	fmt.Fprintf(m.config.w, "%s %s\n", m.config.promptPrefix, s)
+	fmt.Fprintf(m.w, "%s %s\n", m.promptPrefix, s)
 }
 
 type ConfigurationModifier func(*configuration) error
@@ -50,6 +53,13 @@ func WithPromptPrefix(prefix string) ConfigurationModifier {
 func WithWriter(writer io.Writer) ConfigurationModifier {
 	return func(c *configuration) error {
 		c.w = writer
+		return nil
+	}
+}
+
+func WithAskForConfirmation(confirm bool) ConfigurationModifier {
+	return func(c *configuration) error {
+		c.askForConfirmation = confirm
 		return nil
 	}
 }
@@ -124,6 +134,11 @@ type userConfirmation struct {
 }
 
 func (g *Gromit) askConfirmation(message string) (userConfirmation, error) {
+	if !g.configuration.askForConfirmation {
+		return userConfirmation{
+			confirm: true,
+		}, nil
+	}
 	g.print(message)
 	var userConfirmation userConfirmation
 	var userResponse string
@@ -152,10 +167,11 @@ func (g *Gromit) executeCommand(command string) error {
 		g.print(fmt.Sprintf("error running the command: %s", err.Error()))
 		return err
 	} else {
+		const lineWidth = 50
 		g.print("Command output:")
-		g.print(strings.Repeat("-", 50))
+		g.print(strings.Repeat("-", lineWidth))
 		g.print(string(output))
-		g.print(strings.Repeat("-", 50))
+		g.print(strings.Repeat("-", lineWidth))
 		return nil
 	}
 }
@@ -187,6 +203,11 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 			Usage: "The system prompt for the AI agent. Defaults to command line helper in a linux environment.",
 		},
 	}
+	config := configuration{
+		promptPrefix:       "⚡️🐶",
+		w:                  os.Stdout,
+		askForConfirmation: true,
+	}
 	gromit := Gromit{
 		AssisterCreator: a,
 		Command: cli.Command{
@@ -194,18 +215,18 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 			Name:  "gromit",
 			Flags: flags,
 		},
-	}
-	gromit.Action = gromit.actionGromit
-	gromit.messagePrinter = messagePrinter{
-		config: &configuration{
-			promptPrefix: "🐶",
-			w:            os.Stdout,
-		},
+		configuration: &config,
 	}
 	for _, apply := range mods {
-		if err := apply(gromit.messagePrinter.config); err != nil {
+		if err := apply(gromit.configuration); err != nil {
 			return nil, err
 		}
 	}
+	gromit.Action = gromit.actionGromit
+	gromit.messagePrinter = messagePrinter{
+		promptPrefix: gromit.configuration.promptPrefix,
+		w:            gromit.configuration.w,
+	}
+
 	return &gromit, nil
 }
