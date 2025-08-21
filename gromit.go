@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -22,19 +23,22 @@ type Gromit struct {
 	cli.Command
 	AssisterCreator
 	messagePrinter
+	*configuration
 }
 
 type messagePrinter struct {
-	config *configuration
+	w            io.Writer
+	promptPrefix string
 }
 
 type configuration struct {
-	promptPrefix string
-	w            io.Writer
+	promptPrefix       string
+	w                  io.Writer
+	askForConfirmation bool
 }
 
 func (m *messagePrinter) print(s string) {
-	fmt.Fprintf(m.config.w, "%s %s\n", m.config.promptPrefix, s)
+	fmt.Fprintf(m.w, "%s %s\n", m.promptPrefix, s)
 }
 
 type ConfigurationModifier func(*configuration) error
@@ -53,16 +57,50 @@ func WithWriter(writer io.Writer) ConfigurationModifier {
 	}
 }
 
-func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
-	assister, err := g.AssisterCreator.GetAssister(g.String("agent"), g.String("model"))
-	if err != nil {
-		return err
+func WithAskForConfirmation(confirm bool) ConfigurationModifier {
+	return func(c *configuration) error {
+		c.askForConfirmation = confirm
+		return nil
 	}
+}
+
+func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	commandArgs := command.Args().Slice()
 	query := strings.Join(commandArgs, " ")
 	if query == "" {
 		g.print("Please run ./gromit --help to see usage")
 		return nil
+	}
+	err := g.handleUserQuery(ctx, query)
+	if err != nil {
+		return err
+	}
+	for ctx.Err() == nil {
+		confirmation, err := g.askConfirmation("Can I help you with anything else?")
+		if err != nil {
+			return err
+		}
+		if confirmation.confirmed {
+			g.print("How can I help?")
+			reader := bufio.NewReader(os.Stdin)
+			query, err := reader.ReadString('\n')
+			if err != nil {
+				return err
+			}
+			if err = g.handleUserQuery(ctx, query); err != nil {
+				return err
+			}
+		} else {
+			break
+		}
+	}
+	return nil
+}
+
+func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
+	assister, err := g.AssisterCreator.GetAssister(g.String("agent"), g.String("model"))
+	if err != nil {
+		return err
 	}
 	prompt := g.String("systemPrompt")
 	if prompt == "" {
@@ -74,40 +112,66 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	}
 	g.print("In order to do that, you need to run:")
 	g.print(exeCommand)
-	g.print("Would you like to run this command?")
-	var userResponse string
-	n, err := fmt.Scanln(&userResponse)
-	userResponse = strings.ToLower(userResponse)
-	switch {
-	case n == 0:
-		g.print("You didn't specify whether you want to run this command!")
-		return nil
-	case err != nil:
+
+	confirmation, err := g.askConfirmation("Would you like to run this command?")
+	if err != nil {
 		g.print("Error reading your response")
 		return err
-	case userResponse == "yes" || userResponse == "y":
-		g.print("Running the command...")
-		err := g.executeCommand(exeCommand)
+	}
+	if confirmation.confirmed {
+		err = g.executeCommand(exeCommand)
 		if err != nil {
-			g.print(fmt.Sprintf("error running the command: %s", err.Error()))
 			return err
-		} else {
-			g.print("Done!")
 		}
-	case userResponse == "no" || userResponse == "n":
+	} else {
 		g.print("You chose not to execute this command.")
 	}
 	return nil
 }
 
+type userConfirmation struct {
+	confirmed bool
+}
+
+func (g *Gromit) askConfirmation(message string) (userConfirmation, error) {
+	if !g.configuration.askForConfirmation {
+		return userConfirmation{
+			confirmed: true,
+		}, nil
+	}
+	g.print(message)
+	var c userConfirmation
+	var userResponse string
+	n, err := fmt.Scanln(&userResponse)
+	userResponse = strings.ToLower(userResponse)
+	switch {
+	case n == 0:
+		g.print("You didn't confirm your choice! Please reply with yes(y) or no(n).")
+		return g.askConfirmation(message)
+	case err != nil:
+		g.print("Error reading your response")
+		return c, err
+	case userResponse == "yes" || userResponse == "y":
+		c.confirmed = true
+	case userResponse == "no" || userResponse == "n":
+		c.confirmed = false
+	}
+	return c, nil
+}
+
 func (g *Gromit) executeCommand(command string) error {
+	g.print("Running the command...")
 	c := exec.Command("sh", "-c", command)
 	output, err := c.CombinedOutput()
 	if err != nil {
+		g.print(fmt.Sprintf("error running the command: %s", err.Error()))
 		return err
 	} else {
+		const lineWidth = 50
 		g.print("Command output:")
+		g.print(strings.Repeat("-", lineWidth))
 		g.print(string(output))
+		g.print(strings.Repeat("-", lineWidth))
 		return nil
 	}
 }
@@ -139,6 +203,11 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 			Usage: "The system prompt for the AI agent. Defaults to command line helper in a linux environment.",
 		},
 	}
+	config := configuration{
+		promptPrefix:       "⚡️🐶",
+		w:                  os.Stdout,
+		askForConfirmation: true,
+	}
 	gromit := Gromit{
 		AssisterCreator: a,
 		Command: cli.Command{
@@ -146,18 +215,18 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 			Name:  "gromit",
 			Flags: flags,
 		},
-	}
-	gromit.Action = gromit.actionGromit
-	gromit.messagePrinter = messagePrinter{
-		config: &configuration{
-			promptPrefix: "🐶",
-			w:            os.Stdout,
-		},
+		configuration: &config,
 	}
 	for _, apply := range mods {
-		if err := apply(gromit.messagePrinter.config); err != nil {
+		if err := apply(gromit.configuration); err != nil {
 			return nil, err
 		}
 	}
+	gromit.Action = gromit.actionGromit
+	gromit.messagePrinter = messagePrinter{
+		promptPrefix: gromit.configuration.promptPrefix,
+		w:            gromit.configuration.w,
+	}
+
 	return &gromit, nil
 }

@@ -21,10 +21,8 @@ func TestExecuteCommand(t *testing.T) {
 func TestMessagePrinter(t *testing.T) {
 	var buff bytes.Buffer
 	p := messagePrinter{
-		config: &configuration{
-			promptPrefix: "✌️",
-			w:            &buff,
-		},
+		promptPrefix: "✌️",
+		w:            &buff,
 	}
 	p.print("hello")
 	require.Equal(t, "✌️ hello\n", buff.String())
@@ -44,18 +42,18 @@ func TestWhenAIProviderFailsToCreateAssister(t *testing.T) {
 	}
 	g, err := NewGromit(m)
 	require.NoError(t, err)
-	err = g.Run(t.Context(), []string{})
+	err = g.handleUserQuery(t.Context(), "some query")
 	require.EqualError(t, err, "Unable to create assister")
 }
 
 func TestWhenAIProviderFailsToFindTheCommand(t *testing.T) {
 	m := &mockAIProvider{
-		commandError: errors.New("Unable to find the correct command"),
+		commandError: errors.New("unable to find the correct command"),
 	}
 	g, err := NewGromit(m)
 	require.NoError(t, err)
 	err = g.Run(t.Context(), []string{"Find", "some", "commmand"})
-	require.EqualError(t, err, "Unable to find the correct command")
+	require.EqualError(t, err, "unable to find the correct command")
 }
 
 func TestAIAssisterFindingCorrectCommand(t *testing.T) {
@@ -63,15 +61,15 @@ func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	m := &mockAIProvider{
 		commandResult: "ls",
 	}
-	g, err := NewGromit(m, WithWriter(&buff))
+	g, err := NewGromit(m, WithWriter(&buff), WithPromptPrefix("🐶"), WithAskForConfirmation(false))
 	require.NoError(t, err)
 
 	g.Run(t.Context(), []string{"gromit", "--model", "myModel", "--agent", "myAgent", "--systemPrompt", "myPrompt", "I", "want", "to", "list", "all", "files", "in", "current", "directory"})
 	result := buff.String()
 	require.Contains(t, result, "🐶 In order to do that, you need to run")
 	require.Contains(t, result, "🐶 ls")
-	require.Contains(t, result, "🐶 Would you like to run this command?")
-	require.Contains(t, result, "🐶 You didn't specify whether you want to run this command!")
+	require.Contains(t, result, "README.md")
+	require.Contains(t, result, "🐶 How can I help?")
 
 	require.Equal(t, "myAgent", m.actualAgent)
 	require.Equal(t, "myModel", m.actualModel)
