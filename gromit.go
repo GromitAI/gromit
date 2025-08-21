@@ -75,12 +75,12 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	if err != nil {
 		return err
 	}
-	for {
+	for ctx.Err() == nil {
 		confirmation, err := g.askConfirmation("Can I help you with anything else?")
 		if err != nil {
 			return err
 		}
-		if confirmation.confirm {
+		if confirmation.confirmed {
 			g.print("How can I help?")
 			reader := bufio.NewReader(os.Stdin)
 			query, err := reader.ReadString('\n')
@@ -118,7 +118,7 @@ func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
 		g.print("Error reading your response")
 		return err
 	}
-	if confirmation.confirm {
+	if confirmation.confirmed {
 		err = g.executeCommand(exeCommand)
 		if err != nil {
 			return err
@@ -130,17 +130,17 @@ func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
 }
 
 type userConfirmation struct {
-	confirm bool
+	confirmed bool
 }
 
 func (g *Gromit) askConfirmation(message string) (userConfirmation, error) {
 	if !g.configuration.askForConfirmation {
 		return userConfirmation{
-			confirm: true,
+			confirmed: true,
 		}, nil
 	}
 	g.print(message)
-	var userConfirmation userConfirmation
+	var c userConfirmation
 	var userResponse string
 	n, err := fmt.Scanln(&userResponse)
 	userResponse = strings.ToLower(userResponse)
@@ -150,13 +150,13 @@ func (g *Gromit) askConfirmation(message string) (userConfirmation, error) {
 		return g.askConfirmation(message)
 	case err != nil:
 		g.print("Error reading your response")
-		return userConfirmation, err
+		return c, err
 	case userResponse == "yes" || userResponse == "y":
-		userConfirmation.confirm = true
+		c.confirmed = true
 	case userResponse == "no" || userResponse == "n":
-		userConfirmation.confirm = false
+		c.confirmed = false
 	}
-	return userConfirmation, nil
+	return c, nil
 }
 
 func (g *Gromit) executeCommand(command string) error {
