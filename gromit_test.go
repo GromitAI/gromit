@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,6 +18,19 @@ func TestExecuteCommand(t *testing.T) {
 	err = g.executeCommand("ls")
 	require.NoError(t, err)
 	require.Contains(t, buff.String(), "gromit_test.go")
+}
+
+func TestGetOperatingSystemInfo(t *testing.T) {
+	systemInfo := getOperatingSystemInfo()
+	require.Equal(t, runtime.GOOS, systemInfo.operatingSystem)
+	require.Equal(t, "\n", systemInfo.delimiter)
+	acceptableShells := []string{"zsh", "bash"}
+	for _, s := range acceptableShells {
+		if strings.Contains(systemInfo.currentShell, s) {
+			return
+		}
+	}
+	t.Fail()
 }
 
 func TestMessagePrinter(t *testing.T) {
