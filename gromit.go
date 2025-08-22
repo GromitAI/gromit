@@ -8,22 +8,47 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/urfave/cli/v3"
 )
 
-const systemPrompt = `You are a command line helper in a linux environment. 
+const systemPrompt = `You are an assistant providing terminal commands for various environments (linux, windows, etc). 
 	You will be given a question about how to do something in the CLI environment. 
 	You will then find out what command to execute and provide the command.
 	Do not provide any additional information, explanation or context, just the linux command.
-	For example, if question is about listing all files in a directory, respond with "ls".`
+	For example, if question is about listing all files in a directory for linux, respond with "ls".`
 
 type Gromit struct {
 	cli.Command
 	AssisterCreator
 	messagePrinter
 	*configuration
+}
+
+type operatingSystemInfo struct {
+	operatingSystem string
+	currentShell    string
+	delimiter       string
+}
+
+func getOperatingSystemInfo() operatingSystemInfo {
+	o := runtime.GOOS
+	var eol string
+	var shell string
+	if strings.Contains(strings.ToLower(o), "windows") {
+		eol = "\r\n"
+	} else {
+		eol = "\n"
+		shell = os.Getenv("SHELL")
+	}
+
+	return operatingSystemInfo{
+		operatingSystem: o,
+		currentShell:    shell,
+		delimiter:       eol,
+	}
 }
 
 type messagePrinter struct {
@@ -35,6 +60,7 @@ type configuration struct {
 	promptPrefix       string
 	w                  io.Writer
 	askForConfirmation bool
+	osInfo             operatingSystemInfo
 }
 
 func (m *messagePrinter) print(s string) {
@@ -106,6 +132,7 @@ func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
 	if prompt == "" {
 		prompt = systemPrompt
 	}
+	prompt = addEnvironmentInfo(g.configuration.osInfo, prompt)
 	exeCommand, err := assister.GetTerminalCommand(ctx, query, prompt)
 	if err != nil {
 		return err
@@ -127,6 +154,15 @@ func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
 		g.print("You chose not to execute this command.")
 	}
 	return nil
+}
+
+// adds environment info such as OS, available shells, etc to the system prompt for the AI
+func addEnvironmentInfo(osInfo operatingSystemInfo, systemPrompt string) string {
+	result := fmt.Sprintf("%s. User's operating system is %s", systemPrompt, osInfo.operatingSystem)
+	if osInfo.currentShell != "" {
+		result = fmt.Sprintf("%s. User's current shell is %s", result, osInfo.currentShell)
+	}
+	return result
 }
 
 type userConfirmation struct {
@@ -207,6 +243,7 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 		promptPrefix:       "⚡️🐶",
 		w:                  os.Stdout,
 		askForConfirmation: true,
+		osInfo:             getOperatingSystemInfo(),
 	}
 	gromit := Gromit{
 		AssisterCreator: a,
