@@ -52,6 +52,8 @@ Set your OpenAI API key as an environment variable:
 
 ```bash
 export OPENAI_API_KEY="your-api-key-here"
+export ANTHROPIC_API_KEY="your-api-key-here"
+export GEMINI_API_KEY="your-api-key-here"
 ```
 
 ## Usage

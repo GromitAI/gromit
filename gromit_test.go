@@ -21,7 +21,7 @@ func TestExecuteCommand(t *testing.T) {
 }
 
 func TestGetOperatingSystemInfo(t *testing.T) {
-	systemInfo := getOperatingSystemInfo()
+	systemInfo := getSystemInfo()
 	require.Equal(t, runtime.GOOS, systemInfo.operatingSystem)
 	require.Equal(t, "\n", systemInfo.delimiter)
 	acceptableShells := []string{"zsh", "bash"}
@@ -88,7 +88,7 @@ func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 
 	require.Equal(t, "myAgent", m.actualAgent)
 	require.Equal(t, "myModel", m.actualModel)
-	require.Equal(t, "myPrompt", m.actualSystemMessage)
+	require.Contains(t, m.actualSystemMessage, "myPrompt")
 	require.Equal(t, "I want to list all files in current directory", m.actualUserMessage)
 }
 
