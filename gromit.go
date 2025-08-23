@@ -54,6 +54,7 @@ func getSystemInfo() systemInfo {
 type messagePrinter struct {
 	w            io.Writer
 	promptPrefix string
+	delimiter    string
 }
 
 type configuration struct {
@@ -64,7 +65,7 @@ type configuration struct {
 }
 
 func (m *messagePrinter) print(s string) {
-	fmt.Fprintf(m.w, "%s %s\n", m.promptPrefix, s)
+	fmt.Fprintf(m.w, "%s %s %s", m.promptPrefix, s, m.delimiter)
 }
 
 type ConfigurationModifier func(*configuration) error
@@ -263,6 +264,7 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 	gromit.messagePrinter = messagePrinter{
 		promptPrefix: gromit.configuration.promptPrefix,
 		w:            gromit.configuration.w,
+		delimiter:    gromit.configuration.systemInfo.delimiter,
 	}
 
 	return &gromit, nil

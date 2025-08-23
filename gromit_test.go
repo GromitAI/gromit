@@ -38,9 +38,10 @@ func TestMessagePrinter(t *testing.T) {
 	p := messagePrinter{
 		promptPrefix: "✌️",
 		w:            &buff,
+		delimiter:    "\r\n",
 	}
 	p.print("hello")
-	require.Equal(t, "✌️ hello\n", buff.String())
+	require.Equal(t, "✌️ hello \r\n", buff.String())
 }
 
 func TestConfigurationPromptPrefix(t *testing.T) {
@@ -89,6 +90,8 @@ func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	require.Equal(t, "myAgent", m.actualAgent)
 	require.Equal(t, "myModel", m.actualModel)
 	require.Contains(t, m.actualSystemMessage, "myPrompt")
+	require.Contains(t, m.actualSystemMessage, "User's operating system is")
+	require.Contains(t, m.actualSystemMessage, "User's current shell is")
 	require.Equal(t, "I want to list all files in current directory", m.actualUserMessage)
 }
 
