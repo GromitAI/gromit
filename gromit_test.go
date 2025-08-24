@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -18,14 +20,28 @@ func TestExecuteCommand(t *testing.T) {
 	require.Contains(t, buff.String(), "gromit_test.go")
 }
 
+func TestGetOperatingSystemInfo(t *testing.T) {
+	systemInfo := getSystemInfo()
+	require.Equal(t, runtime.GOOS, systemInfo.operatingSystem)
+	require.Equal(t, "\n", systemInfo.delimiter)
+	acceptableShells := []string{"zsh", "bash"}
+	for _, s := range acceptableShells {
+		if strings.Contains(systemInfo.currentShell, s) {
+			return
+		}
+	}
+	t.Fail()
+}
+
 func TestMessagePrinter(t *testing.T) {
 	var buff bytes.Buffer
 	p := messagePrinter{
 		promptPrefix: "✌️",
 		w:            &buff,
+		delimiter:    "\r\n",
 	}
 	p.print("hello")
-	require.Equal(t, "✌️ hello\n", buff.String())
+	require.Equal(t, "✌️ hello \r\n", buff.String())
 }
 
 func TestConfigurationPromptPrefix(t *testing.T) {
@@ -73,7 +89,9 @@ func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 
 	require.Equal(t, "myAgent", m.actualAgent)
 	require.Equal(t, "myModel", m.actualModel)
-	require.Equal(t, "myPrompt", m.actualSystemMessage)
+	require.Contains(t, m.actualSystemMessage, "myPrompt")
+	require.Contains(t, m.actualSystemMessage, "User's operating system is")
+	require.Contains(t, m.actualSystemMessage, "User's current shell is")
 	require.Equal(t, "I want to list all files in current directory", m.actualUserMessage)
 }
 
