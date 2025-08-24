@@ -14,7 +14,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-const systemPrompt = `You are an assistant providing terminal commands for various environments (linux, mac, windows, etc). 
+const systemPrompt = `You are an assistant providing terminal commands based on user's questions. 
 	You will be given a question about how to do something in the CLI environment. 
 	You will then find out what command to execute and provide the command.
 	Do not provide any additional information, explanation or context, just the linux command.
@@ -31,23 +31,29 @@ type systemInfo struct {
 	operatingSystem string
 	currentShell    string
 	delimiter       string
+	kernelInfo      string
 }
 
 func getSystemInfo() systemInfo {
 	o := runtime.GOOS
-	var eol string
-	var shell string
+	var eol, shell, kernelInfo string
+	var err error
 	if strings.Contains(strings.ToLower(o), "windows") {
 		eol = "\r\n"
+		kernelInfo, err = runCommand("cmd", "/C", "ver")
 	} else {
 		eol = "\n"
 		shell = os.Getenv("SHELL")
+		kernelInfo, err = runCommand("uname", "-a")
 	}
-
+	if err != nil {
+		fmt.Println("Error retrieving runtime information: ", err)
+	}
 	return systemInfo{
 		operatingSystem: o,
 		currentShell:    shell,
 		delimiter:       eol,
+		kernelInfo:      kernelInfo,
 	}
 }
 
@@ -160,6 +166,9 @@ func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
 // adds environment info such as OS, available shells, etc to the system prompt for the AI
 func addEnvironmentInfo(systemInfo systemInfo, systemPrompt string) string {
 	result := fmt.Sprintf("%s. User's operating system is %s", systemPrompt, systemInfo.operatingSystem)
+	if systemInfo.kernelInfo != "" {
+		result = fmt.Sprintf("%s. User's kernel info is %s", systemPrompt, systemInfo.kernelInfo)
+	}
 	if systemInfo.currentShell != "" {
 		result = fmt.Sprintf("%s. User's current shell is %s", result, systemInfo.currentShell)
 	}
@@ -198,8 +207,7 @@ func (g *Gromit) askConfirmation(message string) (userConfirmation, error) {
 
 func (g *Gromit) executeCommand(command string) error {
 	g.print("Running the command...")
-	c := exec.Command("sh", "-c", command)
-	output, err := c.CombinedOutput()
+	output, err := runCommand(command)
 	if err != nil {
 		g.print(fmt.Sprintf("error running the command: %s", err.Error()))
 		return err
@@ -207,10 +215,20 @@ func (g *Gromit) executeCommand(command string) error {
 		const lineWidth = 50
 		g.print("Command output:")
 		g.print(strings.Repeat("-", lineWidth))
-		g.print(string(output))
+		g.print(output)
 		g.print(strings.Repeat("-", lineWidth))
 		return nil
 	}
+}
+
+func runCommand(command string, args ...string) (string, error) {
+	allArgs := append([]string{"-c", command}, args...)
+	c := exec.Command("sh", allArgs...)
+	output, err := c.CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error) {
