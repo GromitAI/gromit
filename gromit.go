@@ -27,13 +27,6 @@ type Gromit struct {
 	*configuration
 }
 
-type systemInfo struct {
-	operatingSystem string
-	currentShell    string
-	delimiter       string
-	kernelInfo      string
-}
-
 func getSystemInfo() systemInfo {
 	o := runtime.GOOS
 	var eol, shell, kernelInfo string
@@ -57,24 +50,9 @@ func getSystemInfo() systemInfo {
 	}
 }
 
-type messagePrinter struct {
-	w            io.Writer
-	promptPrefix string
-	delimiter    string
-}
-
-type configuration struct {
-	promptPrefix       string
-	w                  io.Writer
-	askForConfirmation bool
-	systemInfo
-}
-
 func (m *messagePrinter) print(s string) {
 	fmt.Fprintf(m.w, "%s %s %s", m.promptPrefix, s, m.delimiter)
 }
-
-type ConfigurationModifier func(*configuration) error
 
 func WithPromptPrefix(prefix string) ConfigurationModifier {
 	return func(c *configuration) error {
@@ -173,10 +151,6 @@ func addEnvironmentInfo(systemInfo systemInfo, systemPrompt string) string {
 		result = fmt.Sprintf("%s. User's current shell is %s", result, systemInfo.currentShell)
 	}
 	return result
-}
-
-type userConfirmation struct {
-	confirmed bool
 }
 
 func (g *Gromit) askConfirmation(message string) (userConfirmation, error) {
