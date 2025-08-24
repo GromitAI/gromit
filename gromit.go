@@ -167,7 +167,7 @@ func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
 func addEnvironmentInfo(systemInfo systemInfo, systemPrompt string) string {
 	result := fmt.Sprintf("%s. User's operating system is %s", systemPrompt, systemInfo.operatingSystem)
 	if systemInfo.kernelInfo != "" {
-		result = fmt.Sprintf("%s. User's kernel info is %s", systemPrompt, systemInfo.kernelInfo)
+		result = fmt.Sprintf("%s. User's kernel info is %s", result, systemInfo.kernelInfo)
 	}
 	if systemInfo.currentShell != "" {
 		result = fmt.Sprintf("%s. User's current shell is %s", result, systemInfo.currentShell)
