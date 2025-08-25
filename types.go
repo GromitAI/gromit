@@ -16,6 +16,7 @@ type messagePrinter struct {
 }
 
 type configuration struct {
+	aiParameters
 	promptPrefix       string
 	w                  io.Writer
 	askForConfirmation bool
@@ -27,3 +28,11 @@ type userConfirmation struct {
 }
 
 type ConfigurationModifier func(*configuration) error
+
+type aiParameters struct {
+	systemPrompt string
+	agent        string
+	model        string
+	apiKey       string
+	maxTokens    int64
+}

@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/anthropics/anthropic-sdk-go"
+	anthropicOption "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/openai/openai-go"
+	openaiOption "github.com/openai/openai-go/option"
 	"google.golang.org/genai"
+	"os"
 )
 
 const (
@@ -20,8 +23,12 @@ const (
 	geminiFlash     = "gemini-2.5-flash"
 )
 
+const (
+	defaultMaxTokens = 1024
+)
+
 type Assister interface {
-	GetTerminalCommand(ctx context.Context, userMessage string, systemMessage string) (string, error)
+	GetTerminalCommand(ctx context.Context, userMessage string) (string, error)
 }
 
 var _ Assister = (*OpenAIAssister)(nil)
@@ -29,17 +36,21 @@ var _ Assister = (*AnthropicAIAssister)(nil)
 var _ Assister = (*GeminiAIAssister)(nil)
 
 type OpenAIAssister struct {
-	model string
+	aiParameters
 }
 
-func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, userMessage string, systemMessage string) (string, error) {
-	client := openai.NewClient()
+func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
+	apiKey := o.aiParameters.apiKey
+	if apiKey == "" {
+		apiKey, _ = os.LookupEnv("OPENAI_API_KEY")
+	}
+	client := openai.NewClient(openaiOption.WithAPIKey(apiKey))
 	chatCompletion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(userMessage),
-			openai.SystemMessage(systemMessage),
+			openai.SystemMessage(o.aiParameters.systemPrompt),
 		},
-		Model: o.model,
+		Model: o.aiParameters.model,
 	})
 	if err != nil {
 		return "", err
@@ -48,15 +59,23 @@ func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, userMessage str
 }
 
 type AnthropicAIAssister struct {
-	model string
+	aiParameters
 }
 
-func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessage string, systemMessage string) (string, error) {
-	client := anthropic.NewClient() //defaults to os.LookupEnv("ANTHROPIC_API_KEY")
+func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
+	apiKey := c.aiParameters.apiKey
+	if apiKey == "" {
+		apiKey, _ = os.LookupEnv("ANTHROPIC_API_KEY")
+	}
+	maxTokens := c.aiParameters.maxTokens
+	if maxTokens == 0 {
+		maxTokens = defaultMaxTokens
+	}
+	client := anthropic.NewClient(anthropicOption.WithAPIKey(apiKey))
 	message, err := client.Messages.New(ctx, anthropic.MessageNewParams{
-		MaxTokens: 1024,
+		MaxTokens: maxTokens,
 		System: []anthropic.TextBlockParam{
-			{Text: systemMessage},
+			{Text: c.aiParameters.systemPrompt},
 		},
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(userMessage)),
@@ -77,12 +96,17 @@ func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessag
 }
 
 type GeminiAIAssister struct {
-	model string
+	aiParameters
 }
 
-func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage string, systemMessage string) (string, error) {
+func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
+	apiKey := g.aiParameters.apiKey
+	if apiKey == "" {
+		apiKey, _ = os.LookupEnv("GEMINI_API_KEY")
+	}
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		Backend: genai.BackendGeminiAPI,
+		APIKey:  apiKey,
 	})
 	if err != nil {
 		return "", err
@@ -90,7 +114,7 @@ func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage s
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: &genai.Content{
 			Parts: []*genai.Part{
-				{Text: systemMessage},
+				{Text: g.aiParameters.systemPrompt},
 			},
 		},
 	}
@@ -106,38 +130,32 @@ func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage s
 }
 
 type AssisterCreator interface {
-	GetAssister(agent string, model string) (Assister, error)
+	GetAssister(parameters aiParameters) (Assister, error)
 }
 
 var _ AssisterCreator = (*defaultAIAssisterCreator)(nil)
 
 type defaultAIAssisterCreator struct{}
 
-func (d *defaultAIAssisterCreator) GetAssister(agent, model string) (Assister, error) {
+func (d *defaultAIAssisterCreator) GetAssister(p aiParameters) (Assister, error) {
 	switch {
-	case agent == "" || agent == openAIAgent:
-		if model == "" {
-			model = openai.ChatModelGPT4o
+	case p.agent == "" || p.agent == openAIAgent:
+		if p.model == "" {
+			p.model = openai.ChatModelGPT4o
 		}
-		return &OpenAIAssister{
-			model: model,
-		}, nil
+		return &OpenAIAssister{p}, nil
 
-	case agent == anthropicAIAgent:
-		if model == "" {
-			model = string(anthropic.ModelClaude3_5HaikuLatest)
+	case p.agent == anthropicAIAgent:
+		if p.model == "" {
+			p.model = string(anthropic.ModelClaude3_5HaikuLatest)
 		}
-		return &AnthropicAIAssister{
-			model: model,
-		}, nil
-	case agent == geminiAIAgent:
-		if model == "" {
-			model = geminiFlashLite
+		return &AnthropicAIAssister{p}, nil
+	case p.agent == geminiAIAgent:
+		if p.model == "" {
+			p.model = geminiFlashLite
 		}
-		return &GeminiAIAssister{
-			model,
-		}, nil
+		return &GeminiAIAssister{p}, nil
 	default:
-		return nil, fmt.Errorf("cannot create AI agent for %s and model %s", agent, model)
+		return nil, fmt.Errorf("cannot create AI agent for %s and model %s", p.agent, p.model)
 	}
 }

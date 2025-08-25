@@ -82,6 +82,18 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		g.print("Please run ./gromit --help to see usage")
 		return nil
 	}
+	prompt := g.String("systemPrompt")
+	if prompt == "" {
+		prompt = systemPrompt
+	}
+	prompt = addEnvironmentInfo(g.configuration.systemInfo, prompt)
+	g.configuration.aiParameters = aiParameters{
+		maxTokens:    g.Int64("maxToken"),
+		apiKey:       g.String("apiKey"),
+		agent:        g.String("agent"),
+		model:        g.String("model"),
+		systemPrompt: prompt,
+	}
 	err := g.handleUserQuery(ctx, query)
 	if err != nil {
 		return err
@@ -109,16 +121,11 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 }
 
 func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
-	assister, err := g.AssisterCreator.GetAssister(g.String("agent"), g.String("model"))
+	assister, err := g.AssisterCreator.GetAssister(g.configuration.aiParameters)
 	if err != nil {
 		return err
 	}
-	prompt := g.String("systemPrompt")
-	if prompt == "" {
-		prompt = systemPrompt
-	}
-	prompt = addEnvironmentInfo(g.configuration.systemInfo, prompt)
-	exeCommand, err := assister.GetTerminalCommand(ctx, query, prompt)
+	exeCommand, err := assister.GetTerminalCommand(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -231,12 +238,21 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 			Name:  "systemPrompt",
 			Usage: "The system prompt for the AI agent. Defaults to command line helper in a linux environment.",
 		},
+		&cli.StringFlag{
+			Name:  "apiKey",
+			Usage: "The API key to use for given AI agent. By default it is read from environment variables.",
+		},
+		&cli.Int32Flag{
+			Name:  "maxTokens",
+			Usage: "Maximum number of tokens for AI agents to generate",
+		},
 	}
 	config := configuration{
 		promptPrefix:       "⚡️🐶",
 		w:                  os.Stdout,
 		askForConfirmation: true,
 		systemInfo:         getSystemInfo(),
+		aiParameters:       aiParameters{},
 	}
 	gromit := Gromit{
 		AssisterCreator: a,
