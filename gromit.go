@@ -88,7 +88,7 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	}
 	prompt = addEnvironmentInfo(g.configuration.systemInfo, prompt)
 	g.configuration.aiParameters = aiParameters{
-		maxTokens:    g.Int64("maxToken"),
+		maxTokens:    g.Int64("maxTokens"),
 		apiKey:       g.String("apiKey"),
 		agent:        g.String("agent"),
 		model:        g.String("model"),
@@ -242,7 +242,7 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 			Name:  "apiKey",
 			Usage: "The API key to use for given AI agent. By default it is read from environment variables.",
 		},
-		&cli.Int32Flag{
+		&cli.Int64Flag{
 			Name:  "maxTokens",
 			Usage: "Maximum number of tokens for AI agents to generate",
 		},

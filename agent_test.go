@@ -10,10 +10,10 @@ import (
 )
 
 type assisterTestCase struct {
-	name                   string
-	inputAgent, inputModel string
-	expectedModel          string
-	err                    string
+	name              string
+	inputAiParameters aiParameters
+	expectedModel     string
+	err               string
 }
 
 func TestGetOpenAIAssister(t *testing.T) {
@@ -23,28 +23,38 @@ func TestGetOpenAIAssister(t *testing.T) {
 			expectedModel: openai.ChatModelGPT4o,
 		},
 		{
-			name:          "OpenAI agent with given model should create correct assister",
-			inputAgent:    openAIAgent,
-			inputModel:    "gpt-5o-mini",
+			name: "OpenAI agent with given model should create correct assister",
+			inputAiParameters: aiParameters{
+				agent:     openAIAgent,
+				model:     "gpt-5o-mini",
+				apiKey:    "key1234",
+				maxTokens: defaultMaxTokens,
+			},
 			expectedModel: "gpt-5o-mini",
 		},
 		{
-			name:       "Unknown agent should result in error",
-			inputAgent: "Unknown agent",
-			inputModel: "unknown model",
-			err:        "cannot create AI agent for Unknown agent and model unknown model",
+			name: "Unknown agent should result in error",
+			inputAiParameters: aiParameters{
+				agent:     "Unknown agent",
+				model:     "unknown model",
+				apiKey:    "key1234",
+				maxTokens: defaultMaxTokens,
+			},
+			err: "cannot create AI agent for Unknown agent and model unknown model",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var creator defaultAIAssisterCreator
-			assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
+			assister, err := creator.GetAssister(test.inputAiParameters)
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
 			} else {
 				require.NoError(t, err)
 				if openAIAssister, ok := assister.(*OpenAIAssister); ok {
 					require.Equal(t, test.expectedModel, openAIAssister.model)
+					require.Equal(t, test.inputAiParameters.apiKey, openAIAssister.apiKey)
+					require.Equal(t, test.inputAiParameters.maxTokens, openAIAssister.maxTokens)
 				} else {
 					require.Fail(t, "Expected OpenAIAssister")
 				}
@@ -56,27 +66,37 @@ func TestGetOpenAIAssister(t *testing.T) {
 func TestGetAnthropicAssister(t *testing.T) {
 	tests := []assisterTestCase{
 		{
-			name:          "Anthropic agent with no model should default to Claude 3.5 Haiku latest",
-			inputAgent:    anthropicAIAgent,
+			name: "Anthropic agent with no model should default to Claude 3.5 Haiku latest",
+			inputAiParameters: aiParameters{
+				agent:     anthropicAIAgent,
+				apiKey:    "key1234",
+				maxTokens: defaultMaxTokens,
+			},
 			expectedModel: string(anthropic.ModelClaude3_5HaikuLatest),
 		},
 		{
-			name:          "Anthropic agent with given model should create correct assister",
-			inputAgent:    anthropicAIAgent,
-			inputModel:    string(anthropic.ModelClaudeOpus4_0),
+			name: "Anthropic agent with given model should create correct assister",
+			inputAiParameters: aiParameters{
+				agent:     anthropicAIAgent,
+				model:     string(anthropic.ModelClaudeOpus4_0),
+				apiKey:    "key1234",
+				maxTokens: defaultMaxTokens,
+			},
 			expectedModel: string(anthropic.ModelClaudeOpus4_0),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var creator defaultAIAssisterCreator
-			assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
+			assister, err := creator.GetAssister(test.inputAiParameters)
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
 			} else {
 				require.NoError(t, err)
 				if anthropicAssister, ok := assister.(*AnthropicAIAssister); ok {
 					require.Equal(t, test.expectedModel, anthropicAssister.model)
+					require.Equal(t, test.inputAiParameters.apiKey, anthropicAssister.apiKey)
+					require.Equal(t, test.inputAiParameters.maxTokens, anthropicAssister.maxTokens)
 				} else {
 					require.Fail(t, "Expected Anthropic AI assister")
 				}
@@ -88,27 +108,37 @@ func TestGetAnthropicAssister(t *testing.T) {
 func TestGetGeminiAssister(t *testing.T) {
 	tests := []assisterTestCase{
 		{
-			name:          "Gemini agent with no model should default to gemini-2.5-flash-lite",
-			inputAgent:    geminiAIAgent,
+			name: "Gemini agent with no model should default to gemini-2.5-flash-lite",
+			inputAiParameters: aiParameters{
+				agent:     geminiAIAgent,
+				apiKey:    "key1234",
+				maxTokens: defaultMaxTokens,
+			},
 			expectedModel: geminiFlashLite,
 		},
 		{
-			name:          "Gemini agent with given model should create correct assister",
-			inputAgent:    geminiAIAgent,
-			inputModel:    "gemini-2.5-flash-preview-tts",
+			name: "Gemini agent with given model should create correct assister",
+			inputAiParameters: aiParameters{
+				agent:     geminiAIAgent,
+				model:     "gemini-2.5-flash-preview-tts",
+				apiKey:    "key1234",
+				maxTokens: defaultMaxTokens,
+			},
 			expectedModel: "gemini-2.5-flash-preview-tts",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var creator defaultAIAssisterCreator
-			assister, err := creator.GetAssister(test.inputAgent, test.inputModel)
+			assister, err := creator.GetAssister(test.inputAiParameters)
 			if test.err != "" {
 				require.EqualError(t, err, test.err)
 			} else {
 				require.NoError(t, err)
 				if geminiAssister, ok := assister.(*GeminiAIAssister); ok {
 					require.Equal(t, test.expectedModel, geminiAssister.model)
+					require.Equal(t, test.inputAiParameters.apiKey, geminiAssister.apiKey)
+					require.Equal(t, test.inputAiParameters.maxTokens, geminiAssister.maxTokens)
 				} else {
 					require.Fail(t, "Expected Gemini AI assister")
 				}
@@ -145,18 +175,27 @@ func TestGetTerminalCommand(t *testing.T) {
 			switch test.agent {
 			case openAIAgent:
 				assister = &OpenAIAssister{
-					model: openai.ChatModelGPT4o,
+					aiParameters{
+						model:        openai.ChatModelGPT4o,
+						systemPrompt: systemPrompt,
+					},
 				}
 			case anthropicAIAgent:
 				assister = &AnthropicAIAssister{
-					model: string(anthropic.ModelClaude3_5HaikuLatest),
+					aiParameters{
+						model:        string(anthropic.ModelClaude3_5HaikuLatest),
+						systemPrompt: systemPrompt,
+					},
 				}
 			case geminiAIAgent:
 				assister = &GeminiAIAssister{
-					model: geminiFlash,
+					aiParameters{
+						model:        geminiFlash,
+						systemPrompt: systemPrompt,
+					},
 				}
 			}
-			command, err := assister.GetTerminalCommand(t.Context(), "I want to list all files in current directory", systemPrompt)
+			command, err := assister.GetTerminalCommand(t.Context(), "I want to list all files in current directory")
 			require.NoError(t, err)
 			require.Contains(t, command, "ls")
 		})

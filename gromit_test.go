@@ -92,7 +92,7 @@ func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	require.Equal(t, "myAgent", m.actualAiParameters.agent)
 	require.Equal(t, "myModel", m.actualAiParameters.model)
 	require.Equal(t, "key1234", m.actualAiParameters.apiKey)
-	require.Equal(t, 2000, m.actualAiParameters.maxTokens)
+	require.Equal(t, int64(2000), m.actualAiParameters.maxTokens)
 	require.Contains(t, m.actualAiParameters.systemPrompt, "myPrompt")
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's operating system is")
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's current shell is")
