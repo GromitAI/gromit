@@ -80,18 +80,22 @@ func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	g, err := NewGromit(m, WithWriter(&buff), WithPromptPrefix("🐶"), WithAskForConfirmation(false))
 	require.NoError(t, err)
 
-	g.Run(t.Context(), []string{"gromit", "--model", "myModel", "--agent", "myAgent", "--systemPrompt", "myPrompt", "I", "want", "to", "list", "all", "files", "in", "current", "directory"})
+	g.Run(t.Context(), []string{"gromit", "--model", "myModel", "--agent", "myAgent",
+		"--apiKey=key1234", "--maxTokens=2000",
+		"--systemPrompt", "myPrompt", "I", "want", "to", "list", "all", "files", "in", "current", "directory"})
 	result := buff.String()
 	require.Contains(t, result, "🐶 In order to do that, you need to run")
 	require.Contains(t, result, "🐶 ls")
 	require.Contains(t, result, "README.md")
 	require.Contains(t, result, "🐶 How can I help?")
 
-	require.Equal(t, "myAgent", m.actualAgent)
-	require.Equal(t, "myModel", m.actualModel)
-	require.Contains(t, m.actualSystemMessage, "myPrompt")
-	require.Contains(t, m.actualSystemMessage, "User's operating system is")
-	require.Contains(t, m.actualSystemMessage, "User's current shell is")
+	require.Equal(t, "myAgent", m.actualAiParameters.agent)
+	require.Equal(t, "myModel", m.actualAiParameters.model)
+	require.Equal(t, "key1234", m.actualAiParameters.apiKey)
+	require.Equal(t, 2000, m.actualAiParameters.maxTokens)
+	require.Contains(t, m.actualAiParameters.systemPrompt, "myPrompt")
+	require.Contains(t, m.actualAiParameters.systemPrompt, "User's operating system is")
+	require.Contains(t, m.actualAiParameters.systemPrompt, "User's current shell is")
 	require.Equal(t, "I want to list all files in current directory", m.actualUserMessage)
 }
 
@@ -100,23 +104,20 @@ type mockAIProvider struct {
 	commandError  error
 	commandResult string
 
-	actualAgent         string
-	actualModel         string
-	actualSystemMessage string
-	actualUserMessage   string
+	actualUserMessage string
+
+	actualAiParameters aiParameters
 }
 
-func (m *mockAIProvider) GetAssister(agent string, model string) (Assister, error) {
-	m.actualAgent = agent
-	m.actualModel = model
+func (m *mockAIProvider) GetAssister(p aiParameters) (Assister, error) {
+	m.actualAiParameters = p
 	if m.assisterError != nil {
 		return nil, m.assisterError
 	}
 	return m, nil
 }
 
-func (m *mockAIProvider) GetTerminalCommand(ctx context.Context, userMessage string, systemMessage string) (string, error) {
-	m.actualSystemMessage = systemMessage
+func (m *mockAIProvider) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
 	m.actualUserMessage = userMessage
 	if m.commandError != nil {
 		return "", m.commandError
