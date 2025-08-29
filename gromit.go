@@ -87,7 +87,7 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		prompt = systemPrompt
 	}
 	prompt = addEnvironmentInfo(g.configuration.systemInfo, prompt)
-	g.configuration.aiParameters = aiParameters{
+	g.configuration.AiParameters = AiParameters{
 		maxTokens:    g.Int64("maxTokens"),
 		apiKey:       g.String("apiKey"),
 		agent:        g.String("agent"),
@@ -121,7 +121,7 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 }
 
 func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
-	assister, err := g.AssisterCreator.GetAssister(g.configuration.aiParameters)
+	assister, err := g.AssisterCreator.GetAssister(g.configuration.AiParameters)
 	if err != nil {
 		return err
 	}
@@ -252,7 +252,7 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 		w:                  os.Stdout,
 		askForConfirmation: true,
 		systemInfo:         getSystemInfo(),
-		aiParameters:       aiParameters{},
+		AiParameters:       AiParameters{},
 	}
 	gromit := Gromit{
 		AssisterCreator: a,

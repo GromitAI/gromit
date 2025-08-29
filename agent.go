@@ -32,11 +32,11 @@ var _ Assister = (*AnthropicAIAssister)(nil)
 var _ Assister = (*GeminiAIAssister)(nil)
 
 type OpenAIAssister struct {
-	aiParameters
+	AiParameters
 }
 
 func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
-	apiKey := o.aiParameters.apiKey
+	apiKey := o.AiParameters.apiKey
 	var client openai.Client
 	if apiKey != "" {
 		client = openai.NewClient(openaiOption.WithAPIKey(apiKey))
@@ -46,9 +46,9 @@ func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, userMessage str
 	chatCompletion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(userMessage),
-			openai.SystemMessage(o.aiParameters.systemPrompt),
+			openai.SystemMessage(o.AiParameters.systemPrompt),
 		},
-		Model: o.aiParameters.model,
+		Model: o.AiParameters.model,
 	})
 	if err != nil {
 		return "", err
@@ -57,12 +57,12 @@ func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, userMessage str
 }
 
 type AnthropicAIAssister struct {
-	aiParameters
+	AiParameters
 }
 
 func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
-	apiKey := c.aiParameters.apiKey
-	maxTokens := c.aiParameters.maxTokens
+	apiKey := c.AiParameters.apiKey
+	maxTokens := c.AiParameters.maxTokens
 	if maxTokens == 0 {
 		maxTokens = defaultMaxTokens
 	}
@@ -75,7 +75,7 @@ func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessag
 	message, err := client.Messages.New(ctx, anthropic.MessageNewParams{
 		MaxTokens: maxTokens,
 		System: []anthropic.TextBlockParam{
-			{Text: c.aiParameters.systemPrompt},
+			{Text: c.AiParameters.systemPrompt},
 		},
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(userMessage)),
@@ -96,11 +96,11 @@ func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessag
 }
 
 type GeminiAIAssister struct {
-	aiParameters
+	AiParameters
 }
 
 func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
-	apiKey := g.aiParameters.apiKey
+	apiKey := g.AiParameters.apiKey
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		Backend: genai.BackendGeminiAPI,
 		APIKey:  apiKey,
@@ -111,7 +111,7 @@ func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage s
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: &genai.Content{
 			Parts: []*genai.Part{
-				{Text: g.aiParameters.systemPrompt},
+				{Text: g.AiParameters.systemPrompt},
 			},
 		},
 	}
@@ -127,14 +127,14 @@ func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage s
 }
 
 type AssisterCreator interface {
-	GetAssister(parameters aiParameters) (Assister, error)
+	GetAssister(parameters AiParameters) (Assister, error)
 }
 
 var _ AssisterCreator = (*defaultAIAssisterCreator)(nil)
 
 type defaultAIAssisterCreator struct{}
 
-func (d *defaultAIAssisterCreator) GetAssister(p aiParameters) (Assister, error) {
+func (d *defaultAIAssisterCreator) GetAssister(p AiParameters) (Assister, error) {
 	switch {
 	case p.agent == "" || p.agent == openAIAgent:
 		if p.model == "" {

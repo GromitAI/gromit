@@ -106,10 +106,10 @@ type mockAIProvider struct {
 
 	actualUserMessage string
 
-	actualAiParameters aiParameters
+	actualAiParameters AiParameters
 }
 
-func (m *mockAIProvider) GetAssister(p aiParameters) (Assister, error) {
+func (m *mockAIProvider) GetAssister(p AiParameters) (Assister, error) {
 	m.actualAiParameters = p
 	if m.assisterError != nil {
 		return nil, m.assisterError

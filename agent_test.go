@@ -11,7 +11,7 @@ import (
 
 type assisterTestCase struct {
 	name              string
-	inputAiParameters aiParameters
+	inputAiParameters AiParameters
 	expectedModel     string
 	err               string
 }
@@ -24,7 +24,7 @@ func TestGetOpenAIAssister(t *testing.T) {
 		},
 		{
 			name: "OpenAI agent with given model should create correct assister",
-			inputAiParameters: aiParameters{
+			inputAiParameters: AiParameters{
 				agent:     openAIAgent,
 				model:     "gpt-5o-mini",
 				apiKey:    "key1234",
@@ -34,7 +34,7 @@ func TestGetOpenAIAssister(t *testing.T) {
 		},
 		{
 			name: "Unknown agent should result in error",
-			inputAiParameters: aiParameters{
+			inputAiParameters: AiParameters{
 				agent:     "Unknown agent",
 				model:     "unknown model",
 				apiKey:    "key1234",
@@ -67,7 +67,7 @@ func TestGetAnthropicAssister(t *testing.T) {
 	tests := []assisterTestCase{
 		{
 			name: "Anthropic agent with no model should default to Claude 3.5 Haiku latest",
-			inputAiParameters: aiParameters{
+			inputAiParameters: AiParameters{
 				agent:     anthropicAIAgent,
 				apiKey:    "key1234",
 				maxTokens: defaultMaxTokens,
@@ -76,7 +76,7 @@ func TestGetAnthropicAssister(t *testing.T) {
 		},
 		{
 			name: "Anthropic agent with given model should create correct assister",
-			inputAiParameters: aiParameters{
+			inputAiParameters: AiParameters{
 				agent:     anthropicAIAgent,
 				model:     string(anthropic.ModelClaudeOpus4_0),
 				apiKey:    "key1234",
@@ -109,7 +109,7 @@ func TestGetGeminiAssister(t *testing.T) {
 	tests := []assisterTestCase{
 		{
 			name: "Gemini agent with no model should default to gemini-2.5-flash-lite",
-			inputAiParameters: aiParameters{
+			inputAiParameters: AiParameters{
 				agent:     geminiAIAgent,
 				apiKey:    "key1234",
 				maxTokens: defaultMaxTokens,
@@ -118,7 +118,7 @@ func TestGetGeminiAssister(t *testing.T) {
 		},
 		{
 			name: "Gemini agent with given model should create correct assister",
-			inputAiParameters: aiParameters{
+			inputAiParameters: AiParameters{
 				agent:     geminiAIAgent,
 				model:     "gemini-2.5-flash-preview-tts",
 				apiKey:    "key1234",
@@ -175,21 +175,21 @@ func TestGetTerminalCommand(t *testing.T) {
 			switch test.agent {
 			case openAIAgent:
 				assister = &OpenAIAssister{
-					aiParameters{
+					AiParameters{
 						model:        openai.ChatModelGPT4o,
 						systemPrompt: systemPrompt,
 					},
 				}
 			case anthropicAIAgent:
 				assister = &AnthropicAIAssister{
-					aiParameters{
+					AiParameters{
 						model:        string(anthropic.ModelClaude3_5HaikuLatest),
 						systemPrompt: systemPrompt,
 					},
 				}
 			case geminiAIAgent:
 				assister = &GeminiAIAssister{
-					aiParameters{
+					AiParameters{
 						model:        geminiFlash,
 						systemPrompt: systemPrompt,
 					},
