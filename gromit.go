@@ -27,13 +27,6 @@ type Gromit struct {
 	*configuration
 }
 
-type systemInfo struct {
-	operatingSystem string
-	currentShell    string
-	delimiter       string
-	kernelInfo      string
-}
-
 func getSystemInfo() systemInfo {
 	o := runtime.GOOS
 	var eol, shell, kernelInfo string
@@ -57,24 +50,9 @@ func getSystemInfo() systemInfo {
 	}
 }
 
-type messagePrinter struct {
-	w            io.Writer
-	promptPrefix string
-	delimiter    string
-}
-
-type configuration struct {
-	promptPrefix       string
-	w                  io.Writer
-	askForConfirmation bool
-	systemInfo
-}
-
 func (m *messagePrinter) print(s string) {
 	fmt.Fprintf(m.w, "%s %s %s", m.promptPrefix, s, m.delimiter)
 }
-
-type ConfigurationModifier func(*configuration) error
 
 func WithPromptPrefix(prefix string) ConfigurationModifier {
 	return func(c *configuration) error {
@@ -104,6 +82,18 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		g.print("Please run ./gromit --help to see usage")
 		return nil
 	}
+	prompt := g.String("systemPrompt")
+	if prompt == "" {
+		prompt = systemPrompt
+	}
+	prompt = addEnvironmentInfo(g.configuration.systemInfo, prompt)
+	g.configuration.AiParameters = AiParameters{
+		maxTokens:    g.Int64("maxTokens"),
+		apiKey:       g.String("apiKey"),
+		agent:        g.String("agent"),
+		model:        g.String("model"),
+		systemPrompt: prompt,
+	}
 	err := g.handleUserQuery(ctx, query)
 	if err != nil {
 		return err
@@ -131,16 +121,11 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 }
 
 func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
-	assister, err := g.AssisterCreator.GetAssister(g.String("agent"), g.String("model"))
+	assister, err := g.AssisterCreator.GetAssister(g.configuration.AiParameters)
 	if err != nil {
 		return err
 	}
-	prompt := g.String("systemPrompt")
-	if prompt == "" {
-		prompt = systemPrompt
-	}
-	prompt = addEnvironmentInfo(g.configuration.systemInfo, prompt)
-	exeCommand, err := assister.GetTerminalCommand(ctx, query, prompt)
+	exeCommand, err := assister.GetTerminalCommand(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -173,10 +158,6 @@ func addEnvironmentInfo(systemInfo systemInfo, systemPrompt string) string {
 		result = fmt.Sprintf("%s. User's current shell is %s", result, systemInfo.currentShell)
 	}
 	return result
-}
-
-type userConfirmation struct {
-	confirmed bool
 }
 
 func (g *Gromit) askConfirmation(message string) (userConfirmation, error) {
@@ -257,12 +238,21 @@ func NewGromit(a AssisterCreator, mods ...ConfigurationModifier) (*Gromit, error
 			Name:  "systemPrompt",
 			Usage: "The system prompt for the AI agent. Defaults to command line helper in a linux environment.",
 		},
+		&cli.StringFlag{
+			Name:  "apiKey",
+			Usage: "The API key to use for given AI agent. By default it is read from environment variables.",
+		},
+		&cli.Int64Flag{
+			Name:  "maxTokens",
+			Usage: "Maximum number of tokens for AI agents to generate",
+		},
 	}
 	config := configuration{
 		promptPrefix:       "⚡️🐶",
 		w:                  os.Stdout,
 		askForConfirmation: true,
 		systemInfo:         getSystemInfo(),
+		AiParameters:       AiParameters{},
 	}
 	gromit := Gromit{
 		AssisterCreator: a,
