@@ -8,23 +8,19 @@ import (
 	"github.com/openai/openai-go"
 	openaiOption "github.com/openai/openai-go/option"
 	"google.golang.org/genai"
-	"os"
 )
 
 const (
 	openAIAgent      = "openai"
 	anthropicAIAgent = "anthropic"
 	geminiAIAgent    = "gemini"
+	defaultMaxTokens = 1024
 )
 
 // Gemini models
 const (
 	geminiFlashLite = "gemini-2.5-flash-lite"
 	geminiFlash     = "gemini-2.5-flash"
-)
-
-const (
-	defaultMaxTokens = 1024
 )
 
 type Assister interface {
@@ -41,10 +37,12 @@ type OpenAIAssister struct {
 
 func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
 	apiKey := o.aiParameters.apiKey
-	if apiKey == "" {
-		apiKey, _ = os.LookupEnv("OPENAI_API_KEY")
+	var client openai.Client
+	if apiKey != "" {
+		client = openai.NewClient(openaiOption.WithAPIKey(apiKey))
+	} else {
+		client = openai.NewClient()
 	}
-	client := openai.NewClient(openaiOption.WithAPIKey(apiKey))
 	chatCompletion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(userMessage),
@@ -64,14 +62,16 @@ type AnthropicAIAssister struct {
 
 func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
 	apiKey := c.aiParameters.apiKey
-	if apiKey == "" {
-		apiKey, _ = os.LookupEnv("ANTHROPIC_API_KEY")
-	}
 	maxTokens := c.aiParameters.maxTokens
 	if maxTokens == 0 {
 		maxTokens = defaultMaxTokens
 	}
-	client := anthropic.NewClient(anthropicOption.WithAPIKey(apiKey))
+	var client anthropic.Client
+	if apiKey != "" {
+		client = anthropic.NewClient(anthropicOption.WithAPIKey(apiKey))
+	} else {
+		client = anthropic.NewClient()
+	}
 	message, err := client.Messages.New(ctx, anthropic.MessageNewParams{
 		MaxTokens: maxTokens,
 		System: []anthropic.TextBlockParam{
@@ -101,9 +101,6 @@ type GeminiAIAssister struct {
 
 func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
 	apiKey := g.aiParameters.apiKey
-	if apiKey == "" {
-		apiKey, _ = os.LookupEnv("GEMINI_API_KEY")
-	}
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		Backend: genai.BackendGeminiAPI,
 		APIKey:  apiKey,
