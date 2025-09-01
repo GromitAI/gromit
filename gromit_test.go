@@ -33,6 +33,16 @@ func TestGetOperatingSystemInfo(t *testing.T) {
 	t.Fail()
 }
 
+func TestGetAvailablePathExecutables(t *testing.T) {
+	result := getAvailablePathExecutables()
+	for _, r := range result {
+		if strings.Contains(r, "go/bin") {
+			return
+		}
+	}
+	t.Fail()
+}
+
 func TestMessagePrinter(t *testing.T) {
 	var buff bytes.Buffer
 	p := messagePrinter{
@@ -96,6 +106,7 @@ func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	require.Contains(t, m.actualAiParameters.systemPrompt, "myPrompt")
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's operating system is")
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's current shell is")
+	require.Contains(t, m.actualAiParameters.systemPrompt, "User's available path commands are")
 	require.Equal(t, "I want to list all files in current directory", m.actualUserMessage)
 }
 
