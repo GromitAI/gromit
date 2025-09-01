@@ -42,12 +42,61 @@ func getSystemInfo() systemInfo {
 	if err != nil {
 		fmt.Println("Error retrieving runtime information: ", err)
 	}
+
 	return systemInfo{
 		operatingSystem: o,
 		currentShell:    shell,
 		delimiter:       eol,
 		kernelInfo:      kernelInfo,
+		pathContent:     getAvailablePathCommands(),
 	}
+}
+
+func getAvailablePathCommands() []string {
+	var result []string
+	const maxEntries = 30
+	const maxEntryPerCommand = 3
+	isRunningOnWindows := strings.Contains(strings.ToLower(runtime.GOOS), "windows")
+	path := os.Getenv("PATH")
+	pathDirectories := strings.Split(path, string(os.PathListSeparator))
+	for _, d := range pathDirectories {
+		entries, err := os.ReadDir(d)
+		if err != nil {
+			continue
+		}
+		var entryCount int
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			if !isRunningOnWindows {
+				info, err := entry.Info()
+				if err != nil {
+					continue
+				}
+				if info.Mode()&0111 != 0 { //if file is executable by user/group/others
+					result = append(result, entry.Name())
+					entryCount++
+				}
+			} else { //on Windows, check file extension
+				validExtensions := []string{".bat", ".exe", ".cmd"}
+				for _, ext := range validExtensions {
+					if strings.HasSuffix(entry.Name(), ext) {
+						result = append(result, entry.Name())
+						entryCount++
+					}
+				}
+			}
+			if entryCount >= maxEntryPerCommand {
+				entryCount = 0
+				continue
+			}
+			if len(result) >= maxEntries {
+				return result
+			}
+		}
+	}
+	return result
 }
 
 func (m *messagePrinter) print(s string) {

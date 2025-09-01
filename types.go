@@ -7,6 +7,7 @@ type systemInfo struct {
 	currentShell    string
 	delimiter       string
 	kernelInfo      string
+	pathContent     []string
 }
 
 type messagePrinter struct {
