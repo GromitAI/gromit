@@ -48,52 +48,21 @@ func getSystemInfo() systemInfo {
 		currentShell:    shell,
 		delimiter:       eol,
 		kernelInfo:      kernelInfo,
-		pathContent:     getAvailablePathCommands(),
+		pathContent:     getAvailablePathExecutables(),
 	}
 }
 
-func getAvailablePathCommands() []string {
+func getAvailablePathExecutables() []string {
 	var result []string
 	const maxEntries = 30
-	const maxEntryPerCommand = 3
-	isRunningOnWindows := strings.Contains(strings.ToLower(runtime.GOOS), "windows")
 	path := os.Getenv("PATH")
 	pathDirectories := strings.Split(path, string(os.PathListSeparator))
 	for _, d := range pathDirectories {
-		entries, err := os.ReadDir(d)
-		if err != nil {
-			continue
-		}
-		var entryCount int
-		for _, entry := range entries {
-			if entry.IsDir() {
-				continue
-			}
-			if !isRunningOnWindows {
-				info, err := entry.Info()
-				if err != nil {
-					continue
-				}
-				if info.Mode()&0111 != 0 { //if file is executable by user/group/others
-					result = append(result, entry.Name())
-					entryCount++
-				}
-			} else { //on Windows, check file extension
-				validExtensions := []string{".bat", ".exe", ".cmd"}
-				for _, ext := range validExtensions {
-					if strings.HasSuffix(entry.Name(), ext) {
-						result = append(result, entry.Name())
-						entryCount++
-					}
-				}
-			}
-			if entryCount >= maxEntryPerCommand {
-				entryCount = 0
-				continue
-			}
-			if len(result) >= maxEntries {
-				return result
-			}
+		pathParts := strings.Split(d, string(os.PathSeparator))
+		programName := pathParts[len(pathParts)-2:]
+		result = append(result, strings.Join(programName, string(os.PathSeparator)))
+		if len(result) >= maxEntries {
+			return result
 		}
 	}
 	return result
@@ -205,6 +174,9 @@ func addEnvironmentInfo(systemInfo systemInfo, systemPrompt string) string {
 	}
 	if systemInfo.currentShell != "" {
 		result = fmt.Sprintf("%s. User's current shell is %s", result, systemInfo.currentShell)
+	}
+	if len(systemInfo.pathContent) > 0 {
+		result = fmt.Sprintf("%s. User's available path commands are: %s", result, systemInfo.pathContent)
 	}
 	return result
 }
