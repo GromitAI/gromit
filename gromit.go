@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/urfave/cli/v3"
@@ -54,15 +55,45 @@ func getSystemInfo() systemInfo {
 
 func getAvailablePathExecutables() []string {
 	var result []string
-	const maxEntries = 30
+	const maxEntries = 300
+	const entryPerDirectory = 10
 	path := os.Getenv("PATH")
 	pathDirectories := strings.Split(path, string(os.PathListSeparator))
+	var counter int
 	for _, d := range pathDirectories {
-		pathParts := strings.Split(d, string(os.PathSeparator))
-		programName := pathParts[len(pathParts)-2:]
-		result = append(result, strings.Join(programName, string(os.PathSeparator)))
-		if len(result) >= maxEntries {
-			return result
+		entries, err := os.ReadDir(d)
+		if err != nil {
+			continue
+		}
+		var fileInfos []os.FileInfo
+
+		for _, entry := range entries {
+			if entry.IsDir() || !entry.Type().IsRegular() {
+				continue
+			}
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+			fileInfos = append(fileInfos, info)
+		}
+
+		sort.Slice(fileInfos, func(i, j int) bool { //sort by last modified time, assuming those files are more useful
+			return fileInfos[i].ModTime().After(fileInfos[j].ModTime())
+		})
+
+		for _, info := range fileInfos {
+			if info.Mode()&0111 != 0 { //if file is executable by user, group or others
+				result = append(result, info.Name())
+				counter++
+			}
+			if len(result) >= maxEntries {
+				return result
+			}
+			if counter >= entryPerDirectory {
+				counter = 0
+				break
+			}
 		}
 	}
 	return result
