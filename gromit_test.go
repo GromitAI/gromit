@@ -36,7 +36,7 @@ func TestGetOperatingSystemInfo(t *testing.T) {
 func TestGetAvailablePathExecutables(t *testing.T) {
 	result := getAvailablePathExecutables()
 	for _, r := range result {
-		if strings.Contains(r, "go/bin") {
+		if strings.Contains(r, "gofmt") {
 			return
 		}
 	}
