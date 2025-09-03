@@ -32,7 +32,8 @@ func getSystemInfo() systemInfo {
 	o := runtime.GOOS
 	var eol, shell, kernelInfo string
 	var err error
-	if strings.Contains(strings.ToLower(o), "windows") {
+	isWindows := strings.Contains(strings.ToLower(o), "windows")
+	if isWindows {
 		eol = "\r\n"
 		kernelInfo, err = runCommand("cmd", "/C", "ver")
 	} else {
@@ -43,13 +44,16 @@ func getSystemInfo() systemInfo {
 	if err != nil {
 		fmt.Println("Error retrieving runtime information: ", err)
 	}
-
+	var pathContent []string
+	if !isWindows {
+		pathContent = getAvailablePathExecutables()
+	}
 	return systemInfo{
 		operatingSystem: o,
 		currentShell:    shell,
 		delimiter:       eol,
 		kernelInfo:      kernelInfo,
-		pathContent:     getAvailablePathExecutables(),
+		pathContent:     pathContent,
 	}
 }
 
