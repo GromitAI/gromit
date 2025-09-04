@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/urfave/cli/v3"
@@ -31,7 +32,8 @@ func getSystemInfo() systemInfo {
 	o := runtime.GOOS
 	var eol, shell, kernelInfo string
 	var err error
-	if strings.Contains(strings.ToLower(o), "windows") {
+	isWindows := strings.Contains(strings.ToLower(o), "windows")
+	if isWindows {
 		eol = "\r\n"
 		kernelInfo, err = runCommand("cmd", "/C", "ver")
 	} else {
@@ -42,12 +44,63 @@ func getSystemInfo() systemInfo {
 	if err != nil {
 		fmt.Println("Error retrieving runtime information: ", err)
 	}
+	var pathContent []string
+	if !isWindows {
+		pathContent = getAvailablePathExecutables()
+	}
 	return systemInfo{
 		operatingSystem: o,
 		currentShell:    shell,
 		delimiter:       eol,
 		kernelInfo:      kernelInfo,
+		pathContent:     pathContent,
 	}
+}
+
+func getAvailablePathExecutables() []string {
+	var result []string
+	const maxEntries = 300
+	const entryPerDirectory = 10
+	path := os.Getenv("PATH")
+	pathDirectories := strings.Split(path, string(os.PathListSeparator))
+	var counter int
+	for _, d := range pathDirectories {
+		entries, err := os.ReadDir(d)
+		if err != nil {
+			continue
+		}
+		var fileInfos []os.FileInfo
+
+		for _, entry := range entries {
+			if entry.IsDir() || !entry.Type().IsRegular() {
+				continue
+			}
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+			fileInfos = append(fileInfos, info)
+		}
+
+		sort.Slice(fileInfos, func(i, j int) bool { //sort by last modified time, assuming those files are more useful
+			return fileInfos[i].ModTime().After(fileInfos[j].ModTime())
+		})
+
+		for _, info := range fileInfos {
+			if info.Mode()&0111 != 0 { //if file is executable by user, group or others
+				result = append(result, info.Name())
+				counter++
+			}
+			if len(result) >= maxEntries {
+				return result
+			}
+			if counter >= entryPerDirectory {
+				counter = 0
+				break
+			}
+		}
+	}
+	return result
 }
 
 func (m *messagePrinter) print(s string) {
@@ -156,6 +209,9 @@ func addEnvironmentInfo(systemInfo systemInfo, systemPrompt string) string {
 	}
 	if systemInfo.currentShell != "" {
 		result = fmt.Sprintf("%s. User's current shell is %s", result, systemInfo.currentShell)
+	}
+	if len(systemInfo.pathContent) > 0 {
+		result = fmt.Sprintf("%s. User's available path commands are: %s", result, systemInfo.pathContent)
 	}
 	return result
 }
