@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -18,8 +19,9 @@ import (
 const systemPrompt = `You are an assistant providing terminal commands based on user's questions. 
 	You will be given a question about how to do something in the CLI environment. 
 	You will then find out what command to execute and provide the command.
-	Do not provide any additional information, explanation or context, just the linux command.
-	For example, if question is about listing all files in a directory for linux, respond with "ls".`
+	Do not provide any additional information, explanation or context, just the linux command inside *** marker.
+	For example, if question is about listing all files in a directory for linux, respond with "***ls***".
+	If no question is asked by user, continue the conversation.`
 
 type Gromit struct {
 	cli.Command
@@ -131,10 +133,6 @@ func WithAskForConfirmation(confirm bool) ConfigurationModifier {
 func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	commandArgs := command.Args().Slice()
 	query := strings.Join(commandArgs, " ")
-	if query == "" {
-		g.print("Please run ./gromit --help to see usage")
-		return nil
-	}
 	prompt := g.String("systemPrompt")
 	if prompt == "" {
 		prompt = systemPrompt
@@ -178,12 +176,25 @@ func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
 	if err != nil {
 		return err
 	}
-	exeCommand, err := assister.GetTerminalCommand(ctx, query)
+	if query == "" {
+		query = "Can you please introduce yourself?"
+	}
+	response, err := assister.GetTerminalCommand(ctx, query)
 	if err != nil {
 		return err
 	}
+	//command is enclosed in *** marker
+	regexp := regexp.MustCompile(`\*\*\*(.*?)\*\*\*`)
+	commands := regexp.FindStringSubmatch(response)
+	var command string
+	if len(commands) > 0 {
+		command = commands[1]
+	} else {
+		g.print(response)
+		return nil
+	}
 	g.print("In order to do that, you need to run:")
-	g.print(exeCommand)
+	g.print(command)
 
 	confirmation, err := g.askConfirmation("Would you like to run this command?")
 	if err != nil {
@@ -191,7 +202,7 @@ func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
 		return err
 	}
 	if confirmation.confirmed {
-		err = g.executeCommand(exeCommand)
+		err = g.executeCommand(command)
 		if err != nil {
 			return err
 		}
