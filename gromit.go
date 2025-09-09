@@ -145,43 +145,44 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		model:        g.String("model"),
 		systemPrompt: prompt,
 	}
-	err := g.handleUserQuery(ctx, query)
+	terminalCommand, err := g.extractCommandForQuery(ctx, query)
 	if err != nil {
 		return err
 	}
+	if terminalCommand != "" {
+		g.handleTerminalCommand(ctx, terminalCommand)
+	}
 	for ctx.Err() == nil {
-		confirmation, err := g.askConfirmation("Can I help you with anything else?")
+		//read the user input, pass it to AI
+		reader := bufio.NewReader(os.Stdin)
+		query, err := reader.ReadString('\n')
 		if err != nil {
 			return err
 		}
-		if confirmation.confirmed {
-			g.print("How can I help?")
-			reader := bufio.NewReader(os.Stdin)
-			query, err := reader.ReadString('\n')
-			if err != nil {
-				return err
-			}
-			if err = g.handleUserQuery(ctx, query); err != nil {
-				return err
-			}
+		terminalCommand, err := g.extractCommandForQuery(ctx, query)
+		if err != nil {
+			return err
+		}
+		if terminalCommand != "" {
+			g.handleTerminalCommand(ctx, terminalCommand)
 		} else {
-			break
+			return nil
 		}
 	}
 	return nil
 }
 
-func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
+func (g *Gromit) extractCommandForQuery(ctx context.Context, query string) (string, error) {
 	assister, err := g.AssisterCreator.GetAssister(g.configuration.AiParameters)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if query == "" {
-		query = "Can you please introduce yourself?"
+		query = "Can you please introduce yourself or continue the conversation?"
 	}
 	response, err := assister.GetTerminalCommand(ctx, query)
 	if err != nil {
-		return err
+		return "", err
 	}
 	//command is enclosed in *** marker
 	regexp := regexp.MustCompile(`\*\*\*(.*?)\*\*\*`)
@@ -191,18 +192,20 @@ func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
 		command = commands[1]
 	} else {
 		g.print(response)
-		return nil
 	}
-	g.print("In order to do that, you need to run:")
-	g.print(command)
+	return command, nil
+}
 
+func (g *Gromit) handleTerminalCommand(ctx context.Context, terminalCommand string) error {
+	g.print("In order to do that, you need to run:")
+	g.print(terminalCommand)
 	confirmation, err := g.askConfirmation("Would you like to run this command?")
 	if err != nil {
 		g.print("Error reading your response")
 		return err
 	}
 	if confirmation.confirmed {
-		err = g.executeCommand(command)
+		err = g.executeCommand(terminalCommand)
 		if err != nil {
 			return err
 		}
