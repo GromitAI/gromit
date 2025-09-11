@@ -19,9 +19,9 @@ import (
 const systemPrompt = `You are an assistant providing terminal commands based on user's questions. 
 	You will be given a question about how to do something in the CLI environment. 
 	You will then find out what command to execute and provide the command.
-	Do not provide any additional information, explanation or context, just the linux command inside *** marker.
+	Make sure to enclose the actual command inside *** marker. 
 	For example, if question is about listing all files in a directory for linux, respond with "***ls***".
-	If no question is asked by user, continue the conversation.`
+	If no question is asked by user, continue the conversation. If they want to exit, respond with "***exit***".`
 
 type Gromit struct {
 	cli.Command
@@ -150,7 +150,10 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		return err
 	}
 	if terminalCommand != "" {
-		g.handleTerminalCommand(ctx, terminalCommand)
+		err = g.handleTerminalCommand(ctx, terminalCommand)
+		if err != nil {
+			return err
+		}
 	}
 	for ctx.Err() == nil {
 		//read the user input, pass it to AI
@@ -163,10 +166,14 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		if err != nil {
 			return err
 		}
+		if terminalCommand == "exit" {
+			break
+		}
 		if terminalCommand != "" {
-			g.handleTerminalCommand(ctx, terminalCommand)
-		} else {
-			return nil
+			err = g.handleTerminalCommand(ctx, terminalCommand)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
