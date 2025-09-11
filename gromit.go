@@ -157,7 +157,7 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	}
 	for ctx.Err() == nil {
 		//read the user input, pass it to AI
-		reader := bufio.NewReader(os.Stdin)
+		reader := bufio.NewReader(g.Reader)
 		query, err := reader.ReadString('\n')
 		if err != nil {
 			return err

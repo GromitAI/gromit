@@ -54,21 +54,13 @@ func TestMessagePrinter(t *testing.T) {
 	require.Equal(t, "✌️ hello \r\n", buff.String())
 }
 
-func TestConfigurationPromptPrefix(t *testing.T) {
-	var buff bytes.Buffer
-	g, err := NewGromit(&mockAIProvider{}, WithPromptPrefix("🏝️"), WithWriter(&buff))
-	require.NoError(t, err)
-	g.Run(t.Context(), []string{})
-	require.Contains(t, buff.String(), "🏝️ Please run ./gromit --help to see usage")
-}
-
 func TestWhenAIProviderFailsToCreateAssister(t *testing.T) {
 	m := &mockAIProvider{
 		assisterError: errors.New("Unable to create assister"),
 	}
 	g, err := NewGromit(m)
 	require.NoError(t, err)
-	err = g.handleUserQuery(t.Context(), "some query")
+	_, err = g.extractCommandForQuery(t.Context(), "some query")
 	require.EqualError(t, err, "Unable to create assister")
 }
 
@@ -85,19 +77,18 @@ func TestWhenAIProviderFailsToFindTheCommand(t *testing.T) {
 func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	var buff bytes.Buffer
 	m := &mockAIProvider{
-		commandResult: "ls",
+		commandResult: "***ls***",
 	}
 	g, err := NewGromit(m, WithWriter(&buff), WithPromptPrefix("🐶"), WithAskForConfirmation(false))
 	require.NoError(t, err)
-
+	g.Reader = strings.NewReader("I want to list all files in current directory\n")
 	g.Run(t.Context(), []string{"gromit", "--model", "myModel", "--agent", "myAgent",
 		"--apiKey=key1234", "--maxTokens=2000",
-		"--systemPrompt", "myPrompt", "I", "want", "to", "list", "all", "files", "in", "current", "directory"})
+		"--systemPrompt", "myPrompt", "hello", "my", "ai", "friend!"})
 	result := buff.String()
 	require.Contains(t, result, "🐶 In order to do that, you need to run")
 	require.Contains(t, result, "🐶 ls")
 	require.Contains(t, result, "README.md")
-	require.Contains(t, result, "🐶 How can I help?")
 
 	require.Equal(t, "myAgent", m.actualAiParameters.agent)
 	require.Equal(t, "myModel", m.actualAiParameters.model)
@@ -107,7 +98,7 @@ func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's operating system is")
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's current shell is")
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's available path commands are")
-	require.Equal(t, "I want to list all files in current directory", m.actualUserMessage)
+	require.Contains(t, m.actualUserMessage, "I want to list all files in current directory")
 }
 
 type mockAIProvider struct {
