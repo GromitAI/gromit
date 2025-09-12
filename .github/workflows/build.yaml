@@ -62,11 +62,3 @@ jobs:
           go-version: '1.24'
       - name: Build the code
         run: go build -o gromitai .
-      - name: Run cli with no commands and check the usage output
-        run: |
-          output=$(./gromitai || true)
-          echo "$output"
-          if [[ "$output" != *"⚡️🤖 Please run ./gromit --help to see usage"* ]]; then
-            echo "❌ Usage message does not match the expected value"
-            exit 1
-          fi

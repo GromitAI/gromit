@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -18,8 +19,9 @@ import (
 const systemPrompt = `You are an assistant providing terminal commands based on user's questions. 
 	You will be given a question about how to do something in the CLI environment. 
 	You will then find out what command to execute and provide the command.
-	Do not provide any additional information, explanation or context, just the linux command.
-	For example, if question is about listing all files in a directory for linux, respond with "ls".`
+	Make sure to enclose the actual command inside *** marker. 
+	For example, if question is about listing all files in a directory for linux, respond with "***ls***".
+	If no question is asked by user, continue the conversation. If they want to exit, respond with "***exit***".`
 
 type Gromit struct {
 	cli.Command
@@ -131,10 +133,6 @@ func WithAskForConfirmation(confirm bool) ConfigurationModifier {
 func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	commandArgs := command.Args().Slice()
 	query := strings.Join(commandArgs, " ")
-	if query == "" {
-		g.print("Please run ./gromit --help to see usage")
-		return nil
-	}
 	prompt := g.String("systemPrompt")
 	if prompt == "" {
 		prompt = systemPrompt
@@ -147,51 +145,74 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		model:        g.String("model"),
 		systemPrompt: prompt,
 	}
-	err := g.handleUserQuery(ctx, query)
+	terminalCommand, err := g.extractCommandForQuery(ctx, query)
 	if err != nil {
 		return err
 	}
-	for ctx.Err() == nil {
-		confirmation, err := g.askConfirmation("Can I help you with anything else?")
+	if terminalCommand != "" {
+		err = g.handleTerminalCommand(ctx, terminalCommand)
 		if err != nil {
 			return err
 		}
-		if confirmation.confirmed {
-			g.print("How can I help?")
-			reader := bufio.NewReader(os.Stdin)
-			query, err := reader.ReadString('\n')
+	}
+	for ctx.Err() == nil {
+		//read the user input, pass it to AI
+		reader := bufio.NewReader(g.Reader)
+		query, err := reader.ReadString('\n')
+		if err != nil {
+			return err
+		}
+		terminalCommand, err := g.extractCommandForQuery(ctx, query)
+		if err != nil {
+			return err
+		}
+		if terminalCommand == "exit" {
+			break
+		}
+		if terminalCommand != "" {
+			err = g.handleTerminalCommand(ctx, terminalCommand)
 			if err != nil {
 				return err
 			}
-			if err = g.handleUserQuery(ctx, query); err != nil {
-				return err
-			}
-		} else {
-			break
 		}
 	}
 	return nil
 }
 
-func (g *Gromit) handleUserQuery(ctx context.Context, query string) error {
+func (g *Gromit) extractCommandForQuery(ctx context.Context, query string) (string, error) {
 	assister, err := g.AssisterCreator.GetAssister(g.configuration.AiParameters)
 	if err != nil {
-		return err
+		return "", err
 	}
-	exeCommand, err := assister.GetTerminalCommand(ctx, query)
+	if query == "" {
+		query = "Can you please introduce yourself or continue the conversation?"
+	}
+	response, err := assister.GetTerminalCommand(ctx, query)
 	if err != nil {
-		return err
+		return "", err
 	}
-	g.print("In order to do that, you need to run:")
-	g.print(exeCommand)
+	//command is enclosed in *** marker
+	regexp := regexp.MustCompile(`\*\*\*(.*?)\*\*\*`)
+	commands := regexp.FindStringSubmatch(response)
+	var command string
+	if len(commands) > 0 {
+		command = commands[1]
+	} else {
+		g.print(response)
+	}
+	return command, nil
+}
 
+func (g *Gromit) handleTerminalCommand(ctx context.Context, terminalCommand string) error {
+	g.print("In order to do that, you need to run:")
+	g.print(terminalCommand)
 	confirmation, err := g.askConfirmation("Would you like to run this command?")
 	if err != nil {
 		g.print("Error reading your response")
 		return err
 	}
 	if confirmation.confirmed {
-		err = g.executeCommand(exeCommand)
+		err = g.executeCommand(terminalCommand)
 		if err != nil {
 			return err
 		}
