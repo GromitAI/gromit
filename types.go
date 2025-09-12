@@ -37,3 +37,9 @@ type AiParameters struct {
 	apiKey       string
 	maxTokens    int64
 }
+
+type AiResponse struct {
+	Command  string `json:"command"`
+	Response string `json:"response"`
+	Exit     bool   `json:"exit"`
+}
