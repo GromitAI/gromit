@@ -145,14 +145,26 @@ func WithAskForConfirmation(confirm bool) ConfigurationModifier {
 	}
 }
 
+var conversations []Conversation
+
 func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	commandArgs := command.Args().Slice()
 	query := strings.Join(commandArgs, " ")
+	if query == "" {
+		query = "Can you please introduce yourself or continue the conversation?"
+	}
 	prompt := g.String("systemPrompt")
 	if prompt == "" {
 		prompt = systemPrompt
 	}
 	prompt = addEnvironmentInfo(g.configuration.systemInfo, prompt)
+	conversations = append(conversations, Conversation{
+		Role:    SystemRole,
+		Message: prompt,
+	}, Conversation{
+		Role:    UserRole,
+		Message: query,
+	})
 	g.configuration.AiParameters = AiParameters{
 		maxTokens:    g.Int64("maxTokens"),
 		apiKey:       g.String("apiKey"),
@@ -162,7 +174,7 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	}
 
 	for ctx.Err() == nil {
-		response, err := g.extractResponseForQuery(ctx, query)
+		response, err := g.extractResponseForQuery(ctx, &conversations)
 		if err != nil {
 			return err
 		}
@@ -179,16 +191,14 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	return nil
 }
 
-func (g *Gromit) extractResponseForQuery(ctx context.Context, query string) (AiResponse, error) {
+func (g *Gromit) extractResponseForQuery(ctx context.Context, conversations *[]Conversation) (AiResponse, error) {
 	var result AiResponse
 	assister, err := g.AssisterCreator.GetAssister(g.configuration.AiParameters)
 	if err != nil {
 		return result, err
 	}
-	if query == "" {
-		query = "Can you please introduce yourself or continue the conversation?"
-	}
-	response, err := assister.GetTerminalCommand(ctx, query)
+
+	response, err := assister.GetTerminalCommand(ctx, conversations)
 	if err != nil {
 		return result, err
 	}
@@ -225,14 +235,16 @@ func (g *Gromit) handleTerminalCommand(ctx context.Context, terminalCommand stri
 }
 
 func (g *Gromit) handleAiResponse(ctx context.Context, aiResponse AiResponse) error {
+	if aiResponse.Response != "" {
+		g.print(aiResponse.Response)
+	}
 	if aiResponse.Command != "" {
 		err := g.handleTerminalCommand(ctx, aiResponse.Command)
 		if err != nil {
 			return err
 		}
-	} else if aiResponse.Response != "" {
-		g.print(aiResponse.Response)
-	} else if aiResponse.Exit {
+	}
+	if aiResponse.Exit {
 		os.Exit(0)
 	}
 	return nil

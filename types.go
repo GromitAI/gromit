@@ -43,3 +43,16 @@ type AiResponse struct {
 	Response string `json:"response"`
 	Exit     bool   `json:"exit"`
 }
+
+type Conversation struct {
+	Role    Role
+	Message string
+}
+
+type Role int
+
+const (
+	SystemRole Role = iota
+	UserRole
+	AssistantRole
+)
