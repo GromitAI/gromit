@@ -19,7 +19,7 @@ import (
 const systemPrompt = `You are an assistant providing terminal commands based on user's questions.
 	Also you should keep up the conversation with the user in case there is no terminal command to execute.
 	You will be given a question about how to do something in the CLI environment and then find out what command to execute and provide the command.
-	Provide your response in the following json format:
+	Always provide your response in the following json format:
 	{
 		"command": "the command to execute, can be empty if a response is provided",
 		"response": "the response to the user, can be empty if a command is provided"
@@ -29,6 +29,12 @@ const systemPrompt = `You are an assistant providing terminal commands based on 
 	{
 		"command": "ls",
 		"response": "",
+		"exit": false
+	}
+	If the question is about telling a joke, respond with:
+	{
+		"command": "",
+		"response": "Some funny joke!",
 		"exit": false
 	}
 	If no question is asked by user, continue the conversation. If they want to exit, respond with 
@@ -159,11 +165,11 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	}
 	prompt = addEnvironmentInfo(g.configuration.systemInfo, prompt)
 	conversations = append(conversations, Conversation{
-		Role:    SystemRole,
-		Message: prompt,
+		Role: SystemRole,
+		Text: prompt,
 	}, Conversation{
-		Role:    UserRole,
-		Message: query,
+		Role: UserRole,
+		Text: query,
 	})
 	g.configuration.AiParameters = AiParameters{
 		maxTokens:    g.Int64("maxTokens"),
@@ -187,6 +193,10 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		if err != nil {
 			return err
 		}
+		conversations = append(conversations, Conversation{
+			Role: UserRole,
+			Text: query,
+		})
 	}
 	return nil
 }
@@ -212,6 +222,10 @@ func (g *Gromit) extractResponseForQuery(ctx context.Context, conversations *[]C
 	if err = json.Unmarshal([]byte(response), &result); err != nil {
 		return result, fmt.Errorf("failed to unmarshal json response: \n %s \n error: %s", response, err.Error())
 	}
+	*conversations = append(*conversations, Conversation{
+		Role: AssistantRole,
+		Text: response,
+	})
 	return result, nil
 }
 

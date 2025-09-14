@@ -45,8 +45,8 @@ type AiResponse struct {
 }
 
 type Conversation struct {
-	Role    Role
-	Message string
+	Role Role
+	Text string
 }
 
 type Role int

@@ -24,7 +24,7 @@ const (
 )
 
 type Assister interface {
-	GetTerminalCommand(ctx context.Context, userMessage string) (string, error)
+	GetTerminalCommand(ctx context.Context, conversations *[]Conversation) (string, error)
 }
 
 var _ Assister = (*OpenAIAssister)(nil)
@@ -35,7 +35,7 @@ type OpenAIAssister struct {
 	AiParameters
 }
 
-func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
+func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, conversations *[]Conversation) (string, error) {
 	apiKey := o.AiParameters.apiKey
 	var client openai.Client
 	if apiKey != "" {
@@ -43,12 +43,19 @@ func (o *OpenAIAssister) GetTerminalCommand(ctx context.Context, userMessage str
 	} else {
 		client = openai.NewClient()
 	}
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(o.AiParameters.systemPrompt),
+	}
+	for _, conversation := range *conversations {
+		if conversation.Role == UserRole {
+			messages = append(messages, openai.UserMessage(conversation.Text))
+		} else if conversation.Role == AssistantRole {
+			messages = append(messages, openai.AssistantMessage(conversation.Text))
+		}
+	}
 	chatCompletion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.UserMessage(userMessage),
-			openai.SystemMessage(o.AiParameters.systemPrompt),
-		},
-		Model: o.AiParameters.model,
+		Messages: messages,
+		Model:    o.AiParameters.model,
 	})
 	if err != nil {
 		return "", err
@@ -60,7 +67,7 @@ type AnthropicAIAssister struct {
 	AiParameters
 }
 
-func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
+func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, conversations *[]Conversation) (string, error) {
 	apiKey := c.AiParameters.apiKey
 	maxTokens := c.AiParameters.maxTokens
 	if maxTokens == 0 {
@@ -72,15 +79,23 @@ func (c *AnthropicAIAssister) GetTerminalCommand(ctx context.Context, userMessag
 	} else {
 		client = anthropic.NewClient()
 	}
+
+	var messages []anthropic.MessageParam
+	for _, conversation := range *conversations {
+		if conversation.Role == UserRole {
+			messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(conversation.Text)))
+		} else if conversation.Role == AssistantRole {
+			messages = append(messages, anthropic.NewAssistantMessage(anthropic.NewTextBlock(conversation.Text)))
+		}
+	}
+
 	message, err := client.Messages.New(ctx, anthropic.MessageNewParams{
 		MaxTokens: maxTokens,
 		System: []anthropic.TextBlockParam{
 			{Text: c.AiParameters.systemPrompt},
 		},
-		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(userMessage)),
-		},
-		Model: anthropic.Model(c.model),
+		Messages: messages,
+		Model:    anthropic.Model(c.model),
 	})
 	if err != nil {
 		return "", err
@@ -99,7 +114,7 @@ type GeminiAIAssister struct {
 	AiParameters
 }
 
-func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
+func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, conversations *[]Conversation) (string, error) {
 	apiKey := g.AiParameters.apiKey
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		Backend: genai.BackendGeminiAPI,
@@ -115,11 +130,27 @@ func (g *GeminiAIAssister) GetTerminalCommand(ctx context.Context, userMessage s
 			},
 		},
 	}
-	chat, err := client.Chats.Create(ctx, g.model, config, nil)
+	var history []*genai.Content
+	var lastUserMessage string
+	for _, conversation := range *conversations {
+		if conversation.Role == UserRole {
+			history = append(history, &genai.Content{
+				Role:  genai.RoleUser,
+				Parts: []*genai.Part{{Text: conversation.Text}},
+			})
+			lastUserMessage = conversation.Text
+		} else if conversation.Role == AssistantRole {
+			history = append(history, &genai.Content{
+				Role:  genai.RoleModel,
+				Parts: []*genai.Part{{Text: conversation.Text}},
+			})
+		}
+	}
+	chat, err := client.Chats.Create(ctx, g.model, config, history)
 	if err != nil {
 		return "", err
 	}
-	result, err := chat.SendMessage(ctx, genai.Part{Text: userMessage})
+	result, err := chat.SendMessage(ctx, genai.Part{Text: lastUserMessage})
 	if err != nil {
 		return "", err
 	}
