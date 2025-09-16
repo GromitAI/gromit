@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"runtime"
@@ -127,7 +128,10 @@ func getAvailablePathExecutables() []string {
 }
 
 func (m *messagePrinter) print(s string) {
-	fmt.Fprintf(m.w, "%s %s %s", m.promptPrefix, s, m.delimiter)
+	_, err := fmt.Fprintf(m.w, "%s %s %s", m.promptPrefix, s, m.delimiter)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func WithPromptPrefix(prefix string) ConfigurationModifier {

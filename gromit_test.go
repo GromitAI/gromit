@@ -60,7 +60,7 @@ func TestWhenAIProviderFailsToCreateAssister(t *testing.T) {
 	}
 	g, err := NewGromit(m)
 	require.NoError(t, err)
-	_, err = g.extractCommandForQuery(t.Context(), "some query")
+	_, err = g.extractResponseForQuery(t.Context(), &[]Conversation{})
 	require.EqualError(t, err, "Unable to create assister")
 }
 
@@ -77,7 +77,7 @@ func TestWhenAIProviderFailsToFindTheCommand(t *testing.T) {
 func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	var buff bytes.Buffer
 	m := &mockAIProvider{
-		commandResult: "***ls***",
+		aiResponse: "json```{\"Command\": \"ls\",\"Response\": \"\",\"Exit\": false}```",
 	}
 	g, err := NewGromit(m, WithWriter(&buff), WithPromptPrefix("🐶"), WithAskForConfirmation(false))
 	require.NoError(t, err)
@@ -98,15 +98,30 @@ func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's operating system is")
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's current shell is")
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's available path commands are")
-	require.Contains(t, m.actualUserMessage, "I want to list all files in current directory")
+
+	//_ := []Conversation {
+	//	{Role: SystemRole, Text: "myPrompt"},
+	//	{Role: UserRole, Text: "hello my ai friend!"},
+	//	{Role: UserRole, Text: "hello my ai friend!"},
+	//}
+
+	for _, c := range *m.actualConversations {
+		if c.Role == SystemRole {
+			require.Contains(t, c.Text, "myPrompt")
+		} else if c.Role == UserRole {
+			require.Contains(t, c.Text, "I want to list all files in current directory")
+		} else {
+			require.Failf(t, "Unknown conversation %s", c.Text)
+		}
+	}
 }
 
 type mockAIProvider struct {
 	assisterError error
 	commandError  error
-	commandResult string
+	aiResponse    string
 
-	actualUserMessage string
+	actualConversations *[]Conversation
 
 	actualAiParameters AiParameters
 }
@@ -119,10 +134,10 @@ func (m *mockAIProvider) GetAssister(p AiParameters) (Assister, error) {
 	return m, nil
 }
 
-func (m *mockAIProvider) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
-	m.actualUserMessage = userMessage
+func (m *mockAIProvider) GetTerminalCommand(ctx context.Context, conversations *[]Conversation) (string, error) {
+	m.actualConversations = conversations
 	if m.commandError != nil {
 		return "", m.commandError
 	}
-	return m.commandResult, nil
+	return m.aiResponse, nil
 }
