@@ -188,9 +188,12 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		if err != nil {
 			return err
 		}
-		err = g.handleAiResponse(ctx, response)
+		exit, err := g.handleAiResponse(ctx, response)
 		if err != nil {
 			return err
+		}
+		if exit {
+			return nil
 		}
 		reader := bufio.NewReader(g.Reader)
 		query, err = reader.ReadString('\n')
@@ -219,7 +222,6 @@ func (g *Gromit) extractResponseForQuery(ctx context.Context, conversations *[]C
 	for _, s := range []string{"json", "```"} {
 		response = strings.ReplaceAll(response, s, "")
 	}
-	strings.ReplaceAll(response, "json", "")
 	if !json.Valid([]byte(response)) {
 		return result, fmt.Errorf("received invalid json response: %s", response)
 	}
@@ -252,20 +254,20 @@ func (g *Gromit) handleTerminalCommand(ctx context.Context, terminalCommand stri
 	return nil
 }
 
-func (g *Gromit) handleAiResponse(ctx context.Context, aiResponse AiResponse) error {
+func (g *Gromit) handleAiResponse(ctx context.Context, aiResponse AiResponse) (shouldExit bool, error error) {
 	if aiResponse.Response != "" {
 		g.print(aiResponse.Response)
 	}
 	if aiResponse.Command != "" {
 		err := g.handleTerminalCommand(ctx, aiResponse.Command)
 		if err != nil {
-			return err
+			return false, err
 		}
 	}
 	if aiResponse.Exit {
-		os.Exit(0)
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
 // adds environment info such as OS, available shells, etc to the system prompt for the AI
