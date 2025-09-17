@@ -112,6 +112,19 @@ func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's available path commands are")
 }
 
+func TestAIAssisterProvidingInvalidJsonResponse(t *testing.T) {
+	var buff bytes.Buffer
+	m := &mockAIProvider{
+		aiResponse: []string{
+			"json```invalid response```",
+		},
+	}
+	g, err := NewGromit(m, WithWriter(&buff))
+	require.NoError(t, err)
+	err = g.Run(t.Context(), []string{})
+	require.Errorf(t, err, "received invalid json response: invalid response")
+}
+
 type mockAIProvider struct {
 	assisterError   error
 	commandError    error

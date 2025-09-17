@@ -235,7 +235,7 @@ func (g *Gromit) extractResponseForQuery(ctx context.Context, conversations *[]C
 	return result, nil
 }
 
-func (g *Gromit) handleTerminalCommand(ctx context.Context, terminalCommand string) error {
+func (g *Gromit) handleTerminalCommand(_ context.Context, terminalCommand string) error {
 	g.print("In order to do that, you need to run:")
 	g.print(terminalCommand)
 	confirmation, err := g.askConfirmation("Would you like to run this command?")
