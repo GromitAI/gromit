@@ -195,7 +195,11 @@ func TestGetTerminalCommand(t *testing.T) {
 					},
 				}
 			}
-			command, err := assister.GetTerminalCommand(t.Context(), "I want to list all files in current directory")
+			conversations := &[]Conversation{
+				{Text: systemPrompt, Role: SystemRole},
+				{Text: "I want to list all files in current directory", Role: UserRole},
+			}
+			command, err := assister.GetTerminalCommand(t.Context(), conversations)
 			require.NoError(t, err)
 			require.Contains(t, command, "ls")
 		})

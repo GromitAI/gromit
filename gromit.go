@@ -3,12 +3,13 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
-	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -16,12 +17,33 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-const systemPrompt = `You are an assistant providing terminal commands based on user's questions. 
-	You will be given a question about how to do something in the CLI environment. 
-	You will then find out what command to execute and provide the command.
-	Make sure to enclose the actual command inside *** marker. 
-	For example, if question is about listing all files in a directory for linux, respond with "***ls***".
-	If no question is asked by user, continue the conversation. If they want to exit, respond with "***exit***".`
+const systemPrompt = `You are an assistant providing terminal commands based on user's questions.
+	Also you should keep up the conversation with the user in case there is no terminal command to execute.
+	You will be given a question about how to do something in the CLI environment and then find out what command to execute and provide the command.
+	Always provide your response in the following json format:
+	{
+		"command": "the command to execute, can be empty if a response is provided",
+		"response": "the response to the user, can be empty if a command is provided"
+		"exit": "true if the user wants to exit, false otherwise"
+	}
+	For example, if question is about listing all files in a directory for linux, respond with 
+	{
+		"command": "ls",
+		"response": "",
+		"exit": false
+	}
+	If the question is about telling a joke, respond with:
+	{
+		"command": "",
+		"response": "Some funny joke!",
+		"exit": false
+	}
+	If no question is asked by user, continue the conversation. If they want to exit, respond with 
+	{
+		"command": "",
+		"response": "",
+		"exit": true
+	}`
 
 type Gromit struct {
 	cli.Command
@@ -106,7 +128,10 @@ func getAvailablePathExecutables() []string {
 }
 
 func (m *messagePrinter) print(s string) {
-	fmt.Fprintf(m.w, "%s %s %s", m.promptPrefix, s, m.delimiter)
+	_, err := fmt.Fprintf(m.w, "%s %s %s", m.promptPrefix, s, m.delimiter)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func WithPromptPrefix(prefix string) ConfigurationModifier {
@@ -130,14 +155,26 @@ func WithAskForConfirmation(confirm bool) ConfigurationModifier {
 	}
 }
 
+var conversations []Conversation
+
 func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 	commandArgs := command.Args().Slice()
 	query := strings.Join(commandArgs, " ")
+	if query == "" {
+		query = "Can you please introduce yourself or continue the conversation?"
+	}
 	prompt := g.String("systemPrompt")
 	if prompt == "" {
 		prompt = systemPrompt
 	}
 	prompt = addEnvironmentInfo(g.configuration.systemInfo, prompt)
+	conversations = append(conversations, Conversation{
+		Role: SystemRole,
+		Text: prompt,
+	}, Conversation{
+		Role: UserRole,
+		Text: query,
+	})
 	g.configuration.AiParameters = AiParameters{
 		maxTokens:    g.Int64("maxTokens"),
 		apiKey:       g.String("apiKey"),
@@ -145,65 +182,60 @@ func (g *Gromit) actionGromit(ctx context.Context, command *cli.Command) error {
 		model:        g.String("model"),
 		systemPrompt: prompt,
 	}
-	terminalCommand, err := g.extractCommandForQuery(ctx, query)
-	if err != nil {
-		return err
-	}
-	if terminalCommand != "" {
-		err = g.handleTerminalCommand(ctx, terminalCommand)
-		if err != nil {
-			return err
-		}
-	}
+
 	for ctx.Err() == nil {
-		//read the user input, pass it to AI
+		response, err := g.extractResponseForQuery(ctx, &conversations)
+		if err != nil {
+			return err
+		}
+		exit, err := g.handleAiResponse(ctx, response)
+		if err != nil {
+			return err
+		}
+		if exit {
+			return nil
+		}
 		reader := bufio.NewReader(g.Reader)
-		query, err := reader.ReadString('\n')
+		query, err = reader.ReadString('\n')
 		if err != nil {
 			return err
 		}
-		terminalCommand, err := g.extractCommandForQuery(ctx, query)
-		if err != nil {
-			return err
-		}
-		if terminalCommand == "exit" {
-			break
-		}
-		if terminalCommand != "" {
-			err = g.handleTerminalCommand(ctx, terminalCommand)
-			if err != nil {
-				return err
-			}
-		}
+		conversations = append(conversations, Conversation{
+			Role: UserRole,
+			Text: query,
+		})
 	}
 	return nil
 }
 
-func (g *Gromit) extractCommandForQuery(ctx context.Context, query string) (string, error) {
+func (g *Gromit) extractResponseForQuery(ctx context.Context, conversations *[]Conversation) (AiResponse, error) {
+	var result AiResponse
 	assister, err := g.AssisterCreator.GetAssister(g.configuration.AiParameters)
 	if err != nil {
-		return "", err
+		return result, err
 	}
-	if query == "" {
-		query = "Can you please introduce yourself or continue the conversation?"
-	}
-	response, err := assister.GetTerminalCommand(ctx, query)
+
+	response, err := assister.GetTerminalCommand(ctx, conversations)
 	if err != nil {
-		return "", err
+		return result, err
 	}
-	//command is enclosed in *** marker
-	regexp := regexp.MustCompile(`\*\*\*(.*?)\*\*\*`)
-	commands := regexp.FindStringSubmatch(response)
-	var command string
-	if len(commands) > 0 {
-		command = commands[1]
-	} else {
-		g.print(response)
+	for _, s := range []string{"json", "```"} {
+		response = strings.ReplaceAll(response, s, "")
 	}
-	return command, nil
+	if !json.Valid([]byte(response)) {
+		return result, fmt.Errorf("received invalid json response: %s", response)
+	}
+	if err = json.Unmarshal([]byte(response), &result); err != nil {
+		return result, fmt.Errorf("failed to unmarshal json response: \n %s \n error: %s", response, err.Error())
+	}
+	*conversations = append(*conversations, Conversation{
+		Role: AssistantRole,
+		Text: response,
+	})
+	return result, nil
 }
 
-func (g *Gromit) handleTerminalCommand(ctx context.Context, terminalCommand string) error {
+func (g *Gromit) handleTerminalCommand(_ context.Context, terminalCommand string) error {
 	g.print("In order to do that, you need to run:")
 	g.print(terminalCommand)
 	confirmation, err := g.askConfirmation("Would you like to run this command?")
@@ -220,6 +252,22 @@ func (g *Gromit) handleTerminalCommand(ctx context.Context, terminalCommand stri
 		g.print("You chose not to execute this command.")
 	}
 	return nil
+}
+
+func (g *Gromit) handleAiResponse(ctx context.Context, aiResponse AiResponse) (shouldExit bool, error error) {
+	if aiResponse.Response != "" {
+		g.print(aiResponse.Response)
+	}
+	if aiResponse.Command != "" {
+		err := g.handleTerminalCommand(ctx, aiResponse.Command)
+		if err != nil {
+			return false, err
+		}
+	}
+	if aiResponse.Exit {
+		return true, nil
+	}
+	return false, nil
 }
 
 // adds environment info such as OS, available shells, etc to the system prompt for the AI

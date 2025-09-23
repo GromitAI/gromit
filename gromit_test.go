@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"runtime"
 	"strings"
 	"testing"
@@ -60,7 +61,7 @@ func TestWhenAIProviderFailsToCreateAssister(t *testing.T) {
 	}
 	g, err := NewGromit(m)
 	require.NoError(t, err)
-	_, err = g.extractCommandForQuery(t.Context(), "some query")
+	_, err = g.extractResponseForQuery(t.Context(), &[]Conversation{})
 	require.EqualError(t, err, "Unable to create assister")
 }
 
@@ -77,15 +78,26 @@ func TestWhenAIProviderFailsToFindTheCommand(t *testing.T) {
 func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	var buff bytes.Buffer
 	m := &mockAIProvider{
-		commandResult: "***ls***",
+		aiResponse: []string{
+			"json```{\"Command\": \"\",\"Response\": \"Hello to you as well!\",\"Exit\": false}```",
+			"json```{\"Command\": \"ls\",\"Response\": \"\",\"Exit\": false}```",
+			"json```{\"Command\": \"\",\"Response\": \"\",\"Exit\": true}```",
+		},
 	}
 	g, err := NewGromit(m, WithWriter(&buff), WithPromptPrefix("🐶"), WithAskForConfirmation(false))
 	require.NoError(t, err)
-	g.Reader = strings.NewReader("I want to list all files in current directory\n")
-	g.Run(t.Context(), []string{"gromit", "--model", "myModel", "--agent", "myAgent",
+
+	readers := []io.Reader{
+		strings.NewReader("I want to list all files in current directory\n"),
+		strings.NewReader("Thank you! bye!\n"),
+	}
+	g.Reader = io.MultiReader(readers...)
+	err = g.Run(t.Context(), []string{"gromit", "--model", "myModel", "--agent", "myAgent",
 		"--apiKey=key1234", "--maxTokens=2000",
 		"--systemPrompt", "myPrompt", "hello", "my", "ai", "friend!"})
+	require.NoError(t, err)
 	result := buff.String()
+	require.Contains(t, result, "🐶 Hello to you as well!")
 	require.Contains(t, result, "🐶 In order to do that, you need to run")
 	require.Contains(t, result, "🐶 ls")
 	require.Contains(t, result, "README.md")
@@ -98,15 +110,28 @@ func TestAIAssisterFindingCorrectCommand(t *testing.T) {
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's operating system is")
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's current shell is")
 	require.Contains(t, m.actualAiParameters.systemPrompt, "User's available path commands are")
-	require.Contains(t, m.actualUserMessage, "I want to list all files in current directory")
+}
+
+func TestAIAssisterProvidingInvalidJsonResponse(t *testing.T) {
+	var buff bytes.Buffer
+	m := &mockAIProvider{
+		aiResponse: []string{
+			"json```invalid response```",
+		},
+	}
+	g, err := NewGromit(m, WithWriter(&buff))
+	require.NoError(t, err)
+	err = g.Run(t.Context(), []string{})
+	require.Errorf(t, err, "received invalid json response: invalid response")
 }
 
 type mockAIProvider struct {
-	assisterError error
-	commandError  error
-	commandResult string
+	assisterError   error
+	commandError    error
+	aiResponse      []string
+	aiResponseIndex int
 
-	actualUserMessage string
+	actualConversations *[]Conversation
 
 	actualAiParameters AiParameters
 }
@@ -119,10 +144,12 @@ func (m *mockAIProvider) GetAssister(p AiParameters) (Assister, error) {
 	return m, nil
 }
 
-func (m *mockAIProvider) GetTerminalCommand(ctx context.Context, userMessage string) (string, error) {
-	m.actualUserMessage = userMessage
+func (m *mockAIProvider) GetTerminalCommand(ctx context.Context, conversations *[]Conversation) (string, error) {
+	m.actualConversations = conversations
 	if m.commandError != nil {
 		return "", m.commandError
 	}
-	return m.commandResult, nil
+	response := m.aiResponse[m.aiResponseIndex]
+	m.aiResponseIndex = m.aiResponseIndex + 1
+	return response, nil
 }
